@@ -826,7 +826,70 @@ dialog.modal > :is(form, .modal-form) { display: flex; flex-direction: column; m
 .modal-ttl > i { font-size: 1.125rem; color: var(--sub); }
 .modal-ttl-txt { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .modal-ttl .x { margin-left: auto; color: var(--muted); font-size: 1.125rem; }
-.modal-ttl-acts { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
+.modal-ttl-acts { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+/* PDF download / print button in modal and route dialog headers */
+.modal-ttl-acts .print-btn,
+.print-btn.btn-link {
+  color: #dc2626 !important;
+  background: color-mix(in srgb, #dc2626 10%, var(--card)) !important;
+  border: 1px solid color-mix(in srgb, #dc2626 30%, transparent) !important;
+  border-radius: var(--r-ctl, 8px) !important;
+  cursor: pointer;
+}
+.modal-ttl-acts .print-btn i,
+.print-btn.btn-link i {
+  color: #dc2626 !important;
+  font-size: 1.125rem !important;
+}
+.modal-ttl-acts .print-btn:hover:not(:disabled),
+.print-btn.btn-link:hover:not(:disabled) {
+  background: color-mix(in srgb, #dc2626 18%, var(--card)) !important;
+  border-color: color-mix(in srgb, #dc2626 55%, transparent) !important;
+  color: #b91c1c !important;
+  transform: translateY(-1px);
+}
+.modal-ttl-acts .print-btn:active:not(:disabled),
+.print-btn.btn-link:active:not(:disabled) {
+  transform: scale(0.93) !important;
+}
+.modal-ttl-acts .print-btn:disabled,
+.print-btn.btn-link:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+.modal-ttl-acts .print-btn .spin,
+.print-btn.btn-link .spin {
+  border-color: color-mix(in srgb, #dc2626 30%, transparent) !important;
+  border-top-color: #dc2626 !important;
+}
+.modal-ttl-acts .print-btn:focus-visible,
+.print-btn.btn-link:focus-visible {
+  outline: 2px solid color-mix(in srgb, #dc2626 50%, transparent) !important;
+  outline-offset: 1px !important;
+}
+.modal-ttl-acts .print-btn:focus:not(:focus-visible),
+.print-btn.btn-link:focus:not(:focus-visible) {
+  outline: none !important;
+}
+
+:root[data-theme='dark'] .modal-ttl-acts .print-btn,
+:root[data-theme='dark'] .print-btn.btn-link {
+  color: #f87171 !important;
+  background: color-mix(in srgb, #ef4444 14%, var(--card)) !important;
+  border-color: color-mix(in srgb, #ef4444 32%, transparent) !important;
+}
+:root[data-theme='dark'] .modal-ttl-acts .print-btn i,
+:root[data-theme='dark'] .print-btn.btn-link i {
+  color: #f87171 !important;
+}
+:root[data-theme='dark'] .modal-ttl-acts .print-btn:hover:not(:disabled),
+:root[data-theme='dark'] .print-btn.btn-link:hover:not(:disabled) {
+  background: color-mix(in srgb, #ef4444 24%, var(--card)) !important;
+  border-color: color-mix(in srgb, #ef4444 60%, transparent) !important;
+  color: #fca5a5 !important;
+}
+
 .modal-ttl-acts .btn-link { color: var(--muted); font-size: 1.125rem; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; }
 .modal-ttl-acts .btn-link .spin { width: 14px; height: 14px; border-width: 2px; border-color: var(--border2); border-top-color: var(--accent); }
 .modal-ttl-acts .btn-link:hover { background: var(--fill-2); color: var(--text); }
