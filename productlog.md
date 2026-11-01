@@ -943,3 +943,20 @@ Audit: FLOW-AUDIT-2026-10-31.html (https://claude.ai/artifact/1WfXyPwRY923p3dcQK
   - Exact count in DB: 2,206 clean materials (2,204 from Excel + 2 retained 1510 mm SS10+ protective films).
 - **Transaction re-linking**: Safely remapped and preserved all child records (`po_items`, `grn_items`, `transfer_items`, `production_consumptions`, `stock_moves`, and `core_settings`) to the fresh material IDs without breaking referential integrity.
 - **BOM verification**: Re-verified BOM engine across all 3,813 finished goods with the fresh materials dataset — **100% layer match rate (3,813 / 3,813) with 0 failures**.
+
+## 59. Standard BOM verification against All_Finished_Goods_BOM.xlsx (2 Nov 2026)
+- **BOM Excel ingestion & structure audit**: Parsed and audited `All_Finished_Goods_BOM.xlsx` (`BOM` and `STANDARD BOM` sheets):
+  - `STANDARD BOM` defines baseline consumption rates per 1 SQM for all 8 standard grades (`AL4050N`, `AL4050`, `AL4045N`, `AL4045`, `AL4035N`, `AL4035`, `AL4025N`, `AL4025`) across `NFR` and `FRB1` core formulations, plus engineering parameters for 1500 mm coil scaling (`(1520/1500)/(1270/1250)`), AL4045 0.35 mm stock coil substitution, and protective film grade mapping.
+  - `BOM` sheet contains 27,360 rows covering 3,040 standard finished goods panels across ALCLAD and ALUMAX brands, 1250 mm and 1500 mm widths, and standard lengths from 2440 mm to 6000 mm.
+- **Automated formula & consumption comparison**:
+  - Ran automated validation comparing all 27,360 component rows in `All_Finished_Goods_BOM.xlsx` against the `lib/bom.js` BOM calculation engine.
+  - **Result: 0 quantity mismatches across all 3,040 FG panels**.
+  - Verified exact parity for Top Coils, Bottom Coils (Window Grey), Core Granule A (`LDPE RECYCLED GRANULE-A` / `FR3 GRANULES (FRB1)-FRB1`), Core Granule B (`LDPE RECYCLED GRANULE-B` / `CALCIUM COMPOUND FILLER-CaCO3`), Adhesive Film (`0.1034 kg/m²`), Protective Film (`1.016 m²/m²` for 1250 mm, `1510/1500 m²/m²` for 1500 mm), and negative waste scrap outputs (Plastic waste, Aluminium side trim, and Aluminium process waste `-0.005 kg/m²`).
+- **Raw Material ERP code cross-check**:
+  - Cross-referenced all 331 distinct raw material SKUs from the BOM sheet against the live Supabase `materials` table.
+  - **Result: 0 missing material codes**. 100% of the 328 physical raw material codes (10-digit ERP SKUs) exist in the database with their authentic item names.
+  - Verified the 3 waste lines (`PLASTIC WASTE DURING PRODUCTION LDPE`, `SIDE TRIMMED ALUMINIUM`, `PROCESS WASTE ALUMINIUM`) are correctly excluded from stock issue requirements.
+- **End-to-End System Health**:
+  - Full catalog BOM validation on all 3,813 database finished goods (`verify-db-bom.mjs`): **3,813 / 3,813 (100%) layer match rate with 0 BOM failures**.
+  - All 18 unit tests passing (`lib/tas.test.mjs`, `lib/bom.test.mjs`, `lib/icons.test.mjs`).
+  - Production build compiled cleanly with Next.js Turbopack in 998ms.
