@@ -235,7 +235,7 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
                       <span className="mat-name">{describe(it) || it.description}</span>
                       <span className="mat-sub">
                         {[
-                          it.color_name,
+                          !describe(it)?.includes(it.color_name) && it.color_name,
                           Number(it.m2) > 0 && (Number(it.qty) > 1 && (it.width && it.length ? (Number(it.width) * Number(it.length)) / 1e6 : it.m2 / it.qty)
                             ? `${money(it.m2)} m² total (${money(it.width && it.length ? (Number(it.width) * Number(it.length)) / 1e6 : it.m2 / it.qty)} m²/pc)`
                             : `${money(it.m2)} m²`),

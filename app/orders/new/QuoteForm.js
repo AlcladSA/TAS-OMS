@@ -39,7 +39,8 @@ export default function QuoteForm({ customers, options, salespersons, me, initia
   const colors = options.color || {}
   const calc = lines.map((l) => {
     const m2 = calcM2(+l.width, +l.length, +l.qty)
-    return { color_name: colors[l.color_code] || '', description: l.brand ? describe(l) : '', m2, total: lineTotal(m2, +l.qty, +l.price) }
+    const color_name = colors[l.color_code] || l.color_name || ''
+    return { color_name, description: l.brand ? describe({ ...l, color_name }) : '', m2, total: lineTotal(m2, +l.qty, +l.price) }
   })
   const rate = edit ? edit.vat_rate : vatRate
   const t = totals(calc, +transport || 0, rate)
@@ -231,7 +232,7 @@ export default function QuoteForm({ customers, options, salespersons, me, initia
                   <tr className="qline-desc">
                     <td colSpan={14}>
                       {calc[i]?.description
-                        ? <><span className="doc-ref">{calc[i].description}</span>{calc[i].color_name && <> · {calc[i].color_name}</>} · priced per {calc[i].m2 ? 'M2' : 'piece'}</>
+                        ? <><span className="doc-ref">{calc[i].description}</span>{!calc[i].description.includes(calc[i].color_name) && calc[i].color_name && <> · {calc[i].color_name}</>} · priced per {calc[i].m2 ? 'M2' : 'piece'}</>
                         : <span className="muted">Pick a brand to build the material description.</span>}
                     </td>
                   </tr>

@@ -21,7 +21,7 @@ const EXPORTS = {
       let q = period(
         filterOrders(
           db().from('orders').select(
-            '*, items:order_items(id, item_no, brand, grade, color_code, color_name, width, length, thickness, description, qty, price, total, dispatched_qty), batches:order_batches(id, do_no, pi_no, items:batch_items(id, order_item_id, do_qty, invoiced_qty, invoiced_price, invoiced_total))'
+            '*, items:order_items(id, item_no, brand, grade, color_code, core, color_name, width, length, thickness, description, qty, price, total, dispatched_qty), batches:order_batches(id, do_no, pi_no, items:batch_items(id, order_item_id, do_qty, invoiced_qty, invoiced_price, invoiced_total))'
           ),
           sp.status || '',
           b
@@ -103,7 +103,7 @@ const EXPORTS = {
     ])
   },
   dispatches: async (sp) => {
-    const rows = await all(() => period(db().from('dispatches').select('*, order:orders(quote_no, customer_name), item:order_items(item_no, brand, grade, color_code, color_name, width, length, thickness, description)'), 'dispatch_date', sp).order('dispatch_date').order('id'))
+    const rows = await all(() => period(db().from('dispatches').select('*, order:orders(quote_no, customer_name), item:order_items(item_no, brand, grade, color_code, core, color_name, width, length, thickness, description)'), 'dispatch_date', sp).order('dispatch_date').order('id'))
     return toCSV(rows, [
       ['Date', (r) => dmy(r.dispatch_date)], ['Quote No', (r) => r.order?.quote_no], ['Customer', (r) => r.order?.customer_name],
       ['Line', (r) => r.item?.item_no], ['Description', (r) => (r.item ? describe(r.item) || r.item.description : '')], ['Qty (PCS)', (r) => r.qty],

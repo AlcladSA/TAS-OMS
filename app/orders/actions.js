@@ -42,13 +42,14 @@ async function parseLines(fd) {
     }
     if (l.color_code && !opt?.color?.[l.color_code]) return { error: row + `"${l.color_code}" is not a valid color code.` }
     const m2 = calcM2(num(l.width), num(l.length), qty)
+    const colorName = opt?.color?.[l.color_code] || null
     items.push({
       line_id: ids[i] || null,
       item_no: items.length + 1,
       ...Object.fromEntries(ATTRS.map((k) => [k, l[k] || null])),
-      color_name: opt?.color?.[l.color_code] || null,
+      color_name: colorName,
       uom: 'M2',
-      description: describe(l),
+      description: describe({ ...l, color_name: colorName }),
       qty, m2, price,
       total: lineTotal(m2, qty, price),
     })

@@ -15,7 +15,7 @@ const TABS = {
   partial: { label: 'Partial', icon: 'ph-circle-half' },
   done: { label: 'Dispatched', icon: 'ph-check-circle' },
 }
-const ITEM = 'id, order_id, item_no, fg_item_id, brand, grade, color_code, color_name, width, length, thickness, description, qty, price, delivered_qty, ready_qty, dispatched_qty, balance_qty, production_status, coil_date'
+const ITEM = 'id, order_id, item_no, fg_item_id, brand, grade, color_code, color_name, core, width, length, thickness, description, qty, price, delivered_qty, ready_qty, dispatched_qty, balance_qty, production_status, coil_date'
 const ORDER = 'orders!inner(id, quote_no, doc_no, do_date, customer_name, status, dispatch_status)'
 const LIMIT = 300
 

@@ -131,7 +131,7 @@ export default function PlantClient({ rows, isOpen, here, tab = 'open', counts =
                   <td className="c-desc">
                     <span className="mat-name">{describe(it) || it.description}</span>
                     <span className="mat-sub">
-                      {[it.color_name, `Ordered ${int(it.qty)}`, `Dispatched ${int(it.dispatched_qty) || 0}`, it.fg_free != null && `Free in stock ${int(it.fg_free)}`].filter(Boolean).join(' · ')}
+                      {[!describe(it)?.includes(it.color_name) && it.color_name, `Ordered ${int(it.qty)}`, `Dispatched ${int(it.dispatched_qty) || 0}`, it.fg_free != null && `Free in stock ${int(it.fg_free)}`].filter(Boolean).join(' · ')}
                     </span>
                   </td>
                   <td className="num fw6 c-n c-bal" data-label="Balance">{int(bal)}</td>
