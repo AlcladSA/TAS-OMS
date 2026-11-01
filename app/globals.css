@@ -855,6 +855,103 @@ dialog.modal > :is(form, .modal-form) { display: flex; flex-direction: column; m
 .foot-acts-left { display: flex; align-items: center; gap: 6px; margin-right: auto; }
 .foot-acts-left:empty { display: none; }
 .foot-acts-left > .btn, .foot-acts-left > a.btn { flex: 0 0 auto !important; }
+
+/* Order profile footer icon buttons (icon-only with dedicated colors) */
+.order-act-btn {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  border-radius: var(--r-ctl, 8px) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid var(--border) !important;
+  background: var(--fill) !important;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+.order-act-btn i {
+  font-size: 1.125rem !important;
+  margin: 0 !important;
+}
+.order-act-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.order-act-btn:active:not(:disabled) {
+  transform: scale(0.93) !important;
+}
+
+.order-act-btn.duplicate {
+  color: #0284c7 !important;
+  background: color-mix(in srgb, #0284c7 10%, var(--card)) !important;
+  border-color: color-mix(in srgb, #0284c7 30%, transparent) !important;
+}
+.order-act-btn.duplicate i { color: #0284c7 !important; }
+.order-act-btn.duplicate:hover:not(:disabled) {
+  background: color-mix(in srgb, #0284c7 18%, var(--card)) !important;
+  border-color: color-mix(in srgb, #0284c7 50%, transparent) !important;
+  color: #0369a1 !important;
+}
+
+.order-act-btn.edit {
+  color: #d97706 !important;
+  background: color-mix(in srgb, #d97706 10%, var(--card)) !important;
+  border-color: color-mix(in srgb, #d97706 30%, transparent) !important;
+}
+.order-act-btn.edit i { color: #d97706 !important; }
+.order-act-btn.edit:hover:not(:disabled) {
+  background: color-mix(in srgb, #d97706 18%, var(--card)) !important;
+  border-color: color-mix(in srgb, #d97706 50%, transparent) !important;
+  color: #b45309 !important;
+}
+
+.order-act-btn.cancel {
+  color: #ea580c !important;
+  background: color-mix(in srgb, #ea580c 10%, var(--card)) !important;
+  border-color: color-mix(in srgb, #ea580c 30%, transparent) !important;
+}
+.order-act-btn.cancel i { color: #ea580c !important; }
+.order-act-btn.cancel:hover:not(:disabled) {
+  background: color-mix(in srgb, #ea580c 18%, var(--card)) !important;
+  border-color: color-mix(in srgb, #ea580c 50%, transparent) !important;
+  color: #c2410c !important;
+}
+
+.order-act-btn.short {
+  color: #7c3aed !important;
+  background: color-mix(in srgb, #7c3aed 10%, var(--card)) !important;
+  border-color: color-mix(in srgb, #7c3aed 30%, transparent) !important;
+}
+.order-act-btn.short i { color: #7c3aed !important; }
+.order-act-btn.short:hover:not(:disabled) {
+  background: color-mix(in srgb, #7c3aed 18%, var(--card)) !important;
+  border-color: color-mix(in srgb, #7c3aed 50%, transparent) !important;
+  color: #6d28d9 !important;
+}
+
+.order-act-btn.delete {
+  color: #dc2626 !important;
+  background: color-mix(in srgb, #dc2626 10%, var(--card)) !important;
+  border-color: color-mix(in srgb, #dc2626 30%, transparent) !important;
+}
+.order-act-btn.delete i { color: #dc2626 !important; }
+.order-act-btn.delete:hover:not(:disabled) {
+  background: color-mix(in srgb, #dc2626 18%, var(--card)) !important;
+  border-color: color-mix(in srgb, #dc2626 50%, transparent) !important;
+  color: #b91c1c !important;
+}
+
+:root[data-theme='dark'] .order-act-btn.duplicate { color: #38bdf8 !important; }
+:root[data-theme='dark'] .order-act-btn.duplicate i { color: #38bdf8 !important; }
+:root[data-theme='dark'] .order-act-btn.edit { color: #fbbf24 !important; }
+:root[data-theme='dark'] .order-act-btn.edit i { color: #fbbf24 !important; }
+:root[data-theme='dark'] .order-act-btn.cancel { color: #fb923c !important; }
+:root[data-theme='dark'] .order-act-btn.cancel i { color: #fb923c !important; }
+:root[data-theme='dark'] .order-act-btn.short { color: #c084fc !important; }
+:root[data-theme='dark'] .order-act-btn.short i { color: #c084fc !important; }
+:root[data-theme='dark'] .order-act-btn.delete { color: #f87171 !important; }
+:root[data-theme='dark'] .order-act-btn.delete i { color: #f87171 !important; }
 @media (pointer: coarse) { .foot-acts-left .btn { min-width: 44px; min-height: 44px; } }
 
 /* Profile sections inside the order dialog (FMS .profile-section) */

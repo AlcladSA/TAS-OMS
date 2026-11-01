@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { DISPATCH, PRODUCTION, STATUS, prodLabel, actionData, balanceOf, can, day, dispatchOpen, int, money, plural, readyOf, totals, vatPct, describe } from '@/lib/tas'
 import { cancelOrder, deleteOrder, saveProduction, shortClose } from './actions'
-import { CustName, FootMore, LinkBusy, Modal, ModalFoot, PlantStatus, RouteDialog, DocView, TypeToConfirm } from '../ui'
+import { CustName, LinkBusy, Modal, ModalFoot, PlantStatus, RouteDialog, DocView, TypeToConfirm } from '../ui'
 import OrderActions, { PiAction, TaxAction } from './OrderActions'
 import MarkReadyModal from '../plant/MarkReadyModal'
 
@@ -113,18 +113,18 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
   const left = (
     <div className="foot-acts-left">
       {can(me, 'sales') && (
-        <Link prefetch={false} className="btn btn-ghost btn-sm" href={`/orders/new?from=${o.id}`}>
-          <LinkBusy /><i className="ph ph-copy" />Duplicate
+        <Link prefetch={false} className="btn order-act-btn duplicate" href={`/orders/new?from=${o.id}`} title="Duplicate quotation" aria-label="Duplicate quotation">
+          <LinkBusy /><i className="ph ph-copy" />
         </Link>
       )}
       {me.role === 'admin' && (
-        <Link prefetch={false} className="btn btn-ghost btn-sm" href={`/orders/${o.id}/edit`}>
-          <LinkBusy /><i className="ph ph-pencil-simple" />Edit
+        <Link prefetch={false} className="btn order-act-btn edit" href={`/orders/${o.id}/edit`} title="Edit order" aria-label="Edit order">
+          <LinkBusy /><i className="ph ph-pencil-simple" />
         </Link>
       )}
-      <FootMore>
+
       {['PENDING', 'APPROVED'].includes(o.status) && !batches.length && !o.do_date && can(me, 'approver') && (
-        <Modal title={`Cancel ${o.quote_no}`} icon="ph-prohibit" label="Cancel order" btnIcon="ph-prohibit" btnClass="btn btn-ghost btn-sm" size="small">
+        <Modal title={`Cancel ${o.quote_no}`} icon="ph-prohibit" ariaLabel="Cancel order" btnIcon="ph-prohibit" btnClass="btn order-act-btn cancel" size="small">
           <form action={cancelOrder}>
             {Hidden}
             <div className="modal-body">
@@ -139,7 +139,7 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
         </Modal>
       )}
       {open && can(me, 'plant', 'approver') && (
-        <Modal title={`Short close ${o.quote_no}`} icon="ph-scissors" label="Short close" btnIcon="ph-scissors" btnClass="btn btn-ghost btn-sm" size="small">
+        <Modal title={`Short close ${o.quote_no}`} icon="ph-scissors" ariaLabel="Short close" btnIcon="ph-scissors" btnClass="btn order-act-btn short" size="small">
           <form action={shortClose}>
             {Hidden}
             <div className="modal-body">
@@ -154,7 +154,7 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
         </Modal>
       )}
       {me.role === 'admin' && (
-        <Modal title={`Delete ${o.quote_no}?`} icon="ph-trash" label="Delete order" btnIcon="ph-trash" btnClass="btn btn-danger btn-sm" size="small">
+        <Modal title={`Delete ${o.quote_no}?`} icon="ph-trash" ariaLabel="Delete order" btnIcon="ph-trash" btnClass="btn order-act-btn delete" size="small">
           <form action={deleteOrder}>
             <input type="hidden" name="id" value={o.id} />
             <TypeToConfirm word={issued ? o.quote_no : null} label="Delete Order" icon="ph-trash">
@@ -170,7 +170,7 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
           </form>
         </Modal>
       )}
-      </FootMore>
+
     </div>
   )
 
