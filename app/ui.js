@@ -332,9 +332,14 @@ export function Tooltips() {
       const shown = (el.innerText || '').split('\n')[0].trim().toLowerCase()
       if (shown && text.toLowerCase().startsWith(shown)) return
       cur = el
+      const dlg = el.closest('dialog[open]')
       const r = el.getBoundingClientRect()
-      const below = r.top < 48
-      setTip({ text, x: r.left + r.width / 2, y: below ? r.bottom + 8 : r.top - 8, below })
+      const dlgR = dlg ? dlg.getBoundingClientRect() : null
+      const topSpace = dlgR ? (r.top - dlgR.top) : r.top
+      const bottomSpace = dlgR ? (dlgR.bottom - r.bottom) : (innerHeight - r.bottom)
+      // When inside a modal header or close to container top edge, position below
+      const below = (topSpace < 48 || !!el.closest('.modal-header')) && bottomSpace >= 36
+      setTip({ text, x: r.left + r.width / 2, y: below ? r.bottom + 8 : r.top - 8, below, dlg })
     }
     const hide = (e) => {
       if (!cur || (e.type !== 'scroll' && e.relatedTarget && cur.contains(e.relatedTarget))) return
@@ -349,16 +354,25 @@ export function Tooltips() {
       document.removeEventListener('scroll', hide, true)
     }
   }, [])
-  // Centre on the element, but never past the window edges.
+  // Centre on the element, but never past the container or window edges.
   useLayoutEffect(() => {
     const t = tipRef.current
     if (!t || !tip) return
     const w = t.offsetWidth
-    t.style.left = `${Math.min(Math.max(tip.x - w / 2, 8), innerWidth - w - 8)}px`
-    t.style.setProperty('--arrow', `${Math.min(Math.max(tip.x - parseFloat(t.style.left), 10), w - 10)}px`)
+    const dlg = tip.dlg
+    const dlgR = dlg?.isConnected && dlg.open ? dlg.getBoundingClientRect() : null
+    const minLeft = dlgR ? Math.max(dlgR.left + 8, 8) : 8
+    const maxLeft = dlgR ? Math.min(dlgR.right - w - 8, innerWidth - w - 8) : innerWidth - w - 8
+    const left = Math.min(Math.max(tip.x - w / 2, minLeft), Math.max(minLeft, maxLeft))
+    t.style.left = `${left}px`
+    t.style.setProperty('--arrow', `${Math.min(Math.max(tip.x - left, 10), Math.max(10, w - 10))}px`)
   }, [tip])
   if (!tip) return null
-  return <div ref={tipRef} className={`tip${tip.below ? ' below' : ''}`} role="tooltip" style={{ top: tip.y }}>{tip.text}</div>
+  const tipEl = <div ref={tipRef} className={`tip${tip.below ? ' below' : ''}`} role="tooltip" style={{ top: tip.y }}>{tip.text}</div>
+  if (tip.dlg && tip.dlg.isConnected && tip.dlg.open && typeof document !== 'undefined') {
+    return createPortal(tipEl, tip.dlg)
+  }
+  return tipEl
 }
 
 // Put inside a long form: once something is typed, leaving the page (link, back, refresh, closing the tab)
