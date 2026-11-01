@@ -2179,7 +2179,17 @@ dialog.modal.closing::backdrop { animation: overlayOut var(--dur-exit) linear fo
 .tbl-bar-l, .tbl-bar-r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .tbl-bar-r { margin-left: auto; }
 .tbl-bar .dl-list { right: 0; }
-.reports-subnav { margin-bottom: 4px; }
+/* Reports unified toolbar: subnav tabs left, date range + export right */
+.reports-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.reports-bar .reports-subnav { margin-bottom: 0; }
+.reports-bar-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.reports-bar-acts form { display: inline-flex; align-items: center; margin: 0; }
+.reports-bar-acts .dl-menu .dl-list { right: 0; }
+.reports-bar-acts .btn-ghost { background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow-1); }
+.reports-bar-acts .btn-ghost:hover { background: var(--fill-2); border-color: var(--border2); }
+@media (max-width: 768px) {
+  .reports-bar-acts { width: 100%; margin-left: 0; }
+}
 .bar { height: 6px; border-radius: 3px; background: var(--link); margin-top: 4px; }
 .dr-extra { display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem; font-weight: 600; color: var(--sub); }
 .dr-extra .flt-sel { width: 100%; }
