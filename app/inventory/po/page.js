@@ -6,9 +6,11 @@ import { PO_STATUS, day, money, qty } from '@/lib/tas'
 import { ClickRow, LinkBusy } from '../../ui'
 import InvTabs from '../InvTabs'
 import PODialog from './PODialog'
+import POTable from './POTable'
 import NewPODialog from './NewPODialog'
 import POActions from './POActions'
 import GRNDialog from '../grn/GRNDialog'
+import GRNTable from '../grn/GRNTable'
 import NewGRNDialog from '../grn/NewGRNDialog'
 
 export async function generateMetadata({ searchParams }) {
@@ -60,7 +62,7 @@ export default async function POList({ searchParams }) {
 
   // 1. PO Query
   let poQ = db().from('purchase_orders')
-    .select('*, items:po_items(id, qty, rate, pending_qty), grns(id, grn_no, status, grn_date)')
+    .select('*, items:po_items(*, m:materials(code, name, uom)), grns(id, grn_no, status, grn_date)')
     .order('id', { ascending: false })
     .limit(LIMIT)
 
@@ -75,7 +77,10 @@ export default async function POList({ searchParams }) {
 
   // 2. GRN Query (when on grn tab)
   let grnQ = db().from('grns')
-    .select('*, po:purchase_orders!inner(po_no, vendor_name), store:stores(name, plant_code), items:grn_items(id)')
+    .select(isGrn
+      ? '*, po:purchase_orders!inner(id, po_no, vendor_name), store:stores(name, plant_code), items:grn_items(*, m:materials(code, name, uom))'
+      : 'id, status'
+    )
     .order('id', { ascending: false })
     .limit(LIMIT)
 
@@ -231,139 +236,38 @@ export default async function POList({ searchParams }) {
 
             {/* Quick action buttons */}
             {/* Each tab's own main action: New PO on Purchase orders, Receive goods on Goods received */}
-            {!isGrn && (
+            {!isGrn ? (
               <Link prefetch={false} href={newHref} scroll={false} className="btn btn-primary btn-sm">
                 <LinkBusy /><i className="ph ph-plus" />New PO
               </Link>
+            ) : (
+              <Link prefetch={false} href={receiveNewHref} scroll={false} className="btn btn-primary btn-sm">
+                <LinkBusy /><i className="ph ph-truck" />Receive goods
+              </Link>
             )}
-            <Link prefetch={false} href={receiveNewHref} scroll={false} className={`btn btn-sm ${isGrn ? 'btn-primary' : 'btn-ghost'}`}>
-              <LinkBusy /><i className="ph ph-truck" />Receive goods
-            </Link>
           </div>
         </div>
 
         {/* ── Table Wrap ── */}
         <div className="tbl-wrap">
           {!isGrn ? (
-            /* ── Purchase Orders Table ── */
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>PO No</th>
-                  <th>Date</th>
-                  <th>Plant</th>
-                  <th>Vendor</th>
-                  <th className="r">Lines</th>
-                  <th className="r">Value (SAR)</th>
-                  <th className="r">Pending qty</th>
-                  <th>Status</th>
-                  <th className="r">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {poRows.map((p) => {
-                  const [label, cls] = PO_STATUS[p.status] || ['Unknown', 'b-none']
-                  const totalVal = (p.items || []).reduce((n, i) => n + i.qty * i.rate, 0)
-                  const pendingTotal = (p.items || []).reduce((n, i) => n + Math.max(0, i.pending_qty), 0)
-                  const pendingQC = (p.grns || []).find((g) => g.status === 'QC_PENDING')
-                  const poData = {
-                    ...p,
-                    value: totalVal,
-                    pending_qty: pendingTotal,
-                  }
-                  return (
-                    <ClickRow key={p.id} href={viewHref(p.id)}>
-                      <td className="nowrap">
-                        <Link prefetch={false} href={viewHref(p.id)} scroll={false} className="qno">{p.po_no}</Link>
-                      </td>
-                      <td className="nowrap" data-label="Date">{day(p.po_date)}</td>
-                      <td data-label="Plant">{p.plant_code}</td>
-                      <td className="fw6" data-label="Vendor"><bdi>{p.vendor_name}</bdi></td>
-                      <td className="num" data-label="Lines">{p.items?.length || 0}</td>
-                      <td className="num" data-label="Value">{money(totalVal)}</td>
-                      <td className="num fw6" data-label="Pending qty">{qty(pendingTotal)}</td>
-                      <td className="nowrap" data-label="Status"><span className={`badge ${cls}`}>{label}</span></td>
-                      <td className="r nowrap" data-label="Actions">
-                        <POActions
-                          po={poData}
-                          me={{ role: me.role }}
-                          back={listHref}
-                          receiveHref={receiveHref(p.id)}
-                          qcHref={pendingQC ? qcHref(pendingQC.id) : null}
-                        />
-                      </td>
-                    </ClickRow>
-                  )
-                })}
-              </tbody>
-            </table>
+            <POTable
+              rows={poRows}
+              listParams={listParams}
+              listHref={listHref}
+              me={{ role: me.role }}
+              term={term}
+              show={show}
+            />
           ) : (
-            /* ── Goods Received (GRN) Table ── */
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>GRN No</th>
-                  <th>Date</th>
-                  <th>PO</th>
-                  <th>Vendor</th>
-                  <th>Store</th>
-                  <th>Invoice</th>
-                  <th className="r">Lines</th>
-                  <th>QC Status</th>
-                  <th className="r">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {grnRows.map((g) => (
-                  <ClickRow key={g.id} href={viewGrnHref(g.id)}>
-                    <td className="nowrap">
-                      <Link prefetch={false} className="qno" href={viewGrnHref(g.id)}>{g.grn_no}</Link>
-                    </td>
-                    <td className="nowrap" data-label="Date">{day(g.grn_date)}</td>
-                    <td className="nowrap" data-label="PO">{g.po?.po_no}</td>
-                    <td className="fw6" data-label="Vendor"><bdi>{g.po?.vendor_name}</bdi></td>
-                    <td data-label="Store">{g.store?.name} <span className="muted">{g.store?.plant_code}</span></td>
-                    <td data-label="Invoice">{g.invoice_no || <span className="muted">—</span>}</td>
-                    <td className="num" data-label="Lines">{g.items?.length || 0}</td>
-                    <td className="nowrap" data-label="QC">
-                      {g.status === 'DONE' ? (
-                        <span className="badge b-ok">Done</span>
-                      ) : (
-                        <span className="badge b-warn">Waiting check</span>
-                      )}
-                    </td>
-                    <td className="r nowrap" data-label="Actions">
-                      <div className="row-acts">
-                        {g.status !== 'DONE' ? (
-                          <Link prefetch={false} href={viewGrnHref(g.id)} scroll={false} className="btn btn-warn btn-sm">
-                            <i className="ph ph-seal-check" />Check (QC)
-                          </Link>
-                        ) : (
-                          <span className="badge b-ok"><i className="ph ph-check" />Done</span>
-                        )}
-                      </div>
-                    </td>
-                  </ClickRow>
-                ))}
-              </tbody>
-            </table>
+            <GRNTable
+              rows={grnRows}
+              listParams={listParams}
+              term={term}
+              show={show}
+            />
           )}
 
-          {/* Empty states */}
-          {!isGrn && !poRows.length && (
-            <div className="empty">
-              <i className="ph ph-shopping-cart" />
-              <h3>No purchase orders here</h3>
-              <p>{term ? `Nothing matches “${term}”.` : 'Create one with New PO.'}</p>
-            </div>
-          )}
-          {isGrn && !grnRows.length && (
-            <div className="empty">
-              <i className="ph ph-truck" />
-              <h3>No goods received records</h3>
-              <p>{term ? `Nothing matches “${term}”.` : show !== 'all' ? 'No goods currently waiting for QC inspection.' : 'No goods received yet.'}</p>
-            </div>
-          )}
         </div>
 
         {((!isGrn && poRows.length === LIMIT) || (isGrn && grnRows.length === LIMIT)) && (

@@ -135,16 +135,12 @@ export default async function Planning({ searchParams }) {
       <div className="card">
         <div className="tbl-top">
           <h2 className="tbl-ttl">
-            <i className="ph ph-calendar-check" />Production Plans <span className="badge b-none">{plans?.length ?? 0}</span>
+            <i className="ph ph-calendar-check" />Production Plans {(plans?.length ?? 0) > 0 && <span className="badge b-none">{plans.length}</span>}
           </h2>
           <div className="tbl-filters">
             <Link prefetch={false} href={needHref(false)} className="btn btn-ghost btn-sm" title="View what customer orders still need">
               <i className="ph ph-list-checks" />What orders need
-              {toMake > 0 ? (
-                <span className="badge b-bad">{qty(toMake)}</span>
-              ) : (
-                <span className="badge b-none">0</span>
-              )}
+              {toMake > 0 && <span className="badge b-bad">{qty(toMake)}</span>}
             </Link>
             <nav className="tabs mb-0" aria-label="Plans status">
               <Link prefetch={false} href={plansHref('open')} className={`tab${showPlans === 'open' ? ' on' : ''}`}>

@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { PRODUCTION, balanceOf, int, plural, readyOf } from '@/lib/tas'
+import { PRODUCTION, balanceOf, int, plural, readyOf, describe } from '@/lib/tas'
 import { saveProduction } from '../orders/actions'
 import { CustName, PlantStatus } from '../ui'
 import MarkReadyModal from './MarkReadyModal'
@@ -129,7 +129,7 @@ export default function PlantClient({ rows, isOpen, here, tab = 'open', counts =
                     <CustName name={o?.customer_name} className="cust-name" />
                   </td>
                   <td className="c-desc">
-                    <span className="mat-name">{it.description}</span>
+                    <span className="mat-name">{describe(it) || it.description}</span>
                     <span className="mat-sub">
                       {[it.color_name, `Ordered ${int(it.qty)}`, `Dispatched ${int(it.dispatched_qty) || 0}`, it.fg_free != null && `Free in stock ${int(it.fg_free)}`].filter(Boolean).join(' · ')}
                     </span>

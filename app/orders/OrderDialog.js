@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { DISPATCH, PRODUCTION, STATUS, prodLabel, actionData, balanceOf, can, day, dispatchOpen, int, money, plural, readyOf, totals, vatPct } from '@/lib/tas'
+import { DISPATCH, PRODUCTION, STATUS, prodLabel, actionData, balanceOf, can, day, dispatchOpen, int, money, plural, readyOf, totals, vatPct, describe } from '@/lib/tas'
 import { cancelOrder, deleteOrder, saveProduction, shortClose } from './actions'
 import { CustName, FootMore, LinkBusy, Modal, ModalFoot, PlantStatus, RouteDialog, DocView, TypeToConfirm } from '../ui'
 import OrderActions, { PiAction, TaxAction } from './OrderActions'
@@ -202,7 +202,7 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
 
       <section className="profile-section">
         <h2 className="profile-section-ttl">
-          <i className="ph ph-package" />Items and dispatch <span className="badge b-none">{o.items.length}</span>
+          <i className="ph ph-package" />Items and dispatch {o.items.length > 0 && <span className="badge b-none">{o.items.length}</span>}
           {open && can(me, 'plant') && o.items.some((it) => balanceOf(it) - readyOf(it) > 0) && (
             <span style={{ marginLeft: 'auto' }}>
               <MarkReadyModal lines={o.items} back={back} label="Mark Ready" btnClass="btn btn-success btn-sm" />
@@ -232,9 +232,15 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
                   <tr key={it.id}>
                     <td className="muted c-no">{it.item_no}</td>
                     <td className="c-mat">
-                      <span className="mat-name">{it.description}</span>
+                      <span className="mat-name">{describe(it) || it.description}</span>
                       <span className="mat-sub">
-                        {[it.color_name, Number(it.m2) > 0 && `${money(it.m2)} m²`, `SAR ${money(it.price)}${Number(it.m2) > 0 ? '/m²' : '/pc'}`].filter(Boolean).join(' · ')}
+                        {[
+                          it.color_name,
+                          Number(it.m2) > 0 && (Number(it.qty) > 1 && (it.width && it.length ? (Number(it.width) * Number(it.length)) / 1e6 : it.m2 / it.qty)
+                            ? `${money(it.m2)} m² total (${money(it.width && it.length ? (Number(it.width) * Number(it.length)) / 1e6 : it.m2 / it.qty)} m²/pc)`
+                            : `${money(it.m2)} m²`),
+                          `SAR ${money(it.price)}${Number(it.m2) > 0 ? '/m²' : '/pc'}`
+                        ].filter(Boolean).join(' · ')}
                         {' · '}<b>SAR {money(it.total)}</b>
                       </span>
                     </td>
@@ -281,7 +287,7 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
       {batches.length > 0 && (
         <section className="profile-section">
           <h2 className="profile-section-ttl">
-            <i className="ph ph-truck" />Shipments and billing <span className="badge b-none">{batches.length}</span>
+            <i className="ph ph-truck" />Shipments and billing {batches.length > 0 && <span className="badge b-none">{batches.length}</span>}
           </h2>
           <div className="tbl-wrap">
             <table className="tbl batch-tbl">
@@ -307,13 +313,13 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
                     <td>
                       <div className="row-acts wrap">
                         {!b.pi_no ? <span className="badge b-warn">1 of 2: PI to make</span>
-                          : !b.tax_invoice_path ? <span className="badge b-warn">2 of 2: tax invoice to attach</span>
+                          : !b.tax_invoice_path ? <span className="badge b-warn">2 of 2: invoice to upload</span>
                             : <span className="badge b-ok"><i className="ph ph-check" />Billed</span>}
                         {approved && !b.pi_no && can(me, 'accounts') && (
                           <PiAction o={act} batch={actBatch[b.id]} back={back} autoOpen={String(openBatchPi) === String(b.id)} />
                         )}
                         {approved && b.pi_no && !b.tax_invoice_path && can(me, 'accounts') && (
-                          <TaxAction o={act} b={actBatch[b.id]} back={back} label="Attach tax invoice" />
+                          <TaxAction o={act} b={actBatch[b.id]} back={back} label="Upload Invoice" />
                         )}
                       </div>
                       {b.pi_no && <div className="muted text-sm"><span className="doc-ref">{b.pi_no}</span> · {day(b.pi_date)}</div>}
@@ -345,7 +351,7 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
 
       {dispatches.length > 0 && (
         <section className="profile-section">
-          <h2 className="profile-section-ttl"><i className="ph ph-truck" />Dispatch history <span className="badge b-none">{dispatches.length}</span></h2>
+          <h2 className="profile-section-ttl"><i className="ph ph-truck" />Dispatch history {dispatches.length > 0 && <span className="badge b-none">{dispatches.length}</span>}</h2>
           <div className="tbl-wrap">
             <table className="tbl">
               <thead>
@@ -405,7 +411,7 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
       {events.length > 0 && (
         <details className="profile-section disclosure">
           <summary className="profile-section-ttl">
-            <i className="ph ph-clock-counter-clockwise" />Timeline <span className="badge b-none">{events.length}</span>
+            <i className="ph ph-clock-counter-clockwise" />Timeline {events.length > 0 && <span className="badge b-none">{events.length}</span>}
             <span className="ttl-hint">Last: {events[0].action}, {stamp(events[0].at)}</span>
             <i className="ph ph-caret-down disc-caret" aria-hidden="true" />
           </summary>

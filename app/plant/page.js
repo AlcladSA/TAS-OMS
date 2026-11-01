@@ -15,7 +15,7 @@ const TABS = {
   partial: { label: 'Partial', icon: 'ph-circle-half' },
   done: { label: 'Dispatched', icon: 'ph-check-circle' },
 }
-const ITEM = 'id, order_id, item_no, fg_item_id, description, color_name, qty, width, length, price, delivered_qty, ready_qty, dispatched_qty, balance_qty, production_status, coil_date'
+const ITEM = 'id, order_id, item_no, fg_item_id, brand, grade, color_code, color_name, width, length, thickness, description, qty, price, delivered_qty, ready_qty, dispatched_qty, balance_qty, production_status, coil_date'
 const ORDER = 'orders!inner(id, quote_no, doc_no, do_date, customer_name, status, dispatch_status)'
 const LIMIT = 300
 
@@ -88,13 +88,13 @@ export default async function Plant({ searchParams }) {
                   href={tabHref(k)}
                   className={`tab${isActive ? ' on' : ''}`}
                   aria-current={isActive ? 'page' : undefined}
-                  title={`${t.label} (${count})`}
-                  aria-label={`${t.label} (${count})`}
+                  title={count > 0 ? `${t.label} (${count})` : t.label}
+                  aria-label={count > 0 ? `${t.label} (${count})` : t.label}
                 >
                   <LinkBusy />
                   <i className={`ph ${t.icon}`} />
                   <span className="tab-txt">{t.label}</span>
-                  <span className="badge b-none">{count}</span>
+                  {count > 0 && <span className="badge b-none">{count}</span>}
                 </IntentLink>
               )
             })}

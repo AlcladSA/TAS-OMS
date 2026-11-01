@@ -909,3 +909,12 @@ Audit: FLOW-AUDIT-2026-10-31.html (https://claude.ai/artifact/1WfXyPwRY923p3dcQK
 - **Plan auto-issue read only 1,000 of 2,203 materials** (plain select). Now uses `invMasters()`; and it refuses, naming the layers, when any BOM line has no material instead of issuing part of the plan.
 - **1510 mm SUPER HIGH SS10+ film missing** for both brands: `supabase/migrate-021.sql` adds them, copied from the 1510 mm HIGH rows (run in the SQL Editor; set the cost after).
 - **Undo dispatch removed** (order dialog + `undoDispatch` action). With Ship = DO + dispatch it took pieces back into the balance but left the DO line and PI, so they could ship and invoice twice. `undo_dispatch()` stays in the database, unused.
+
+## 56. Collapsible tables, PDF download, and item format standard (1 Nov 2026)
+- **Collapsible master-detail tables**: Added collapsible inline item sub-tables to Orders (`OrdersView.js`), Purchase Orders (`POTable.js`), Goods Received (`GRNTable.js`), and Warehouse Issues (`IssuesTable.js`). Embedded caret expanders inside the first reference column with flex layout to prevent header and ID overlap.
+- **Direct PDF download**: Replaced direct browser printing with native client-side PDF downloads (`html2pdf.js` / canvas rasterization) via `PrintButton` with confirmation prompt, saving documents cleanly with their reference number as filename.
+- **Modal cleanup**: Removed redundant bottom "Close" buttons from dialog modals across the app that already feature a corner 'X' close button.
+- **Enhanced Orders CSV export**: Flattened CSV export (`/admin/export/orders`) into item-wise rows (multi-item orders get individual rows), added separate columns for Quotation Qty, DO Qty, PI Qty, Quotation Price, and PI Price.
+- **Item description standardization**: Standardized item descriptions across the app and database from legacy human-readable strings to `{brand}-{grade}-{color_code}-{width}x{length}x{thickness}MM` (e.g. `ALUMAX-AL4025-AL4001-1250x5600x2MM`). Updated `describe(l)` in `lib/tas.js`, existing database rows in `order_items`, and all display components.
+- **Area & per-piece labeling correction**: Fixed sub-label on order items which previously labeled total line area as `/ pc` (e.g., `306.25 m² / pc` for 100 panels of 1250x2450mm). Updated to clearly show `306.25 m² total · 3.06 m² / pc`.
+- **Page help for Orders**: Added "How this page works" workflow guide to the Orders page (`PageHelp.js` and `app/orders/page.js`), matching Purchasing and Production pages.

@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useState } from 'react'
-import { balanceOf, can, dispatchOpen, int, money, readyOf, today, totals } from '@/lib/tas'
+import { balanceOf, can, dispatchOpen, int, money, readyOf, today, totals, describe } from '@/lib/tas'
 import { decide, generateBatchDO, generateBatchPI, uploadTaxInvoice } from './actions'
 import { FileDrop, Modal, ModalFoot } from '../ui'
 
@@ -89,12 +89,12 @@ export default function OrderActions({ o, me, back, sm, openBatchPi, inDialog, o
           const missing = list.filter((b) => !(b ? b.tax_invoice_path : o.tax_invoice_path))
           return missing.slice(0, 1).map((b) => (
             <TaxAction key={b?.id || 'order'} o={o} b={b} back={back} size={size}
-              label={`Attach tax invoice${missing.length > 1 ? ` (1 of ${missing.length})` : ''}`} />
+              label={`Upload Invoice${missing.length > 1 ? ` (1 of ${missing.length})` : ''}`} />
           ))
         }
         return list.map((b) => {
           const cur = b ? b.tax_invoice_path : o.tax_invoice_path
-          return <TaxAction key={b?.id || 'order'} o={o} b={b} back={back} size={size} label={`${cur ? 'Replace tax invoice' : 'Attach tax invoice'}${b?.pi_no ? ` (${b.pi_no})` : ''}`} />
+          return <TaxAction key={b?.id || 'order'} o={o} b={b} back={back} size={size} label={`${cur ? 'Replace Invoice' : 'Upload Invoice'}${b?.pi_no ? ` (${b.pi_no})` : ''}`} />
         })
       })()}
 
@@ -140,7 +140,7 @@ export function ShipAction({ o, lines, back, size = '', label }) {
                   return (
                     <tr key={it.id}>
                       <td className="muted">{it.item_no}</td>
-                      <td className="desc wrap">{it.description}</td>
+                      <td className="desc wrap">{describe(it) || it.description}</td>
                       <td>
                         <input
                           className="qty"
@@ -242,7 +242,7 @@ export function PiAction({ o, batch, back, label = 'Make PI', size = ' btn-sm', 
                 {(batch.items || []).map((bi, idx) => (
                   <tr key={bi.id}>
                     <td className="muted">{idx + 1}</td>
-                    <td className="desc wrap">{bi.order_item?.description || 'Item'}</td>
+                    <td className="desc wrap">{describe(bi.order_item) || bi.order_item?.description || 'Item'}</td>
                     <td className="num fw6">{int(bi.do_qty)}</td>
                     <td className="num">{money(bi.order_item?.price)}</td>
                     <td>
@@ -298,7 +298,7 @@ export function TaxAction({ o, b, back, label, size = ' btn-sm' }) {
     <Modal
       title={`${cur ? 'Replace' : 'Attach'} tax invoice for ${b?.pi_no || o.quote_no}`}
       icon="ph-upload-simple"
-      label={label || (cur ? 'Replace tax invoice' : 'Attach tax invoice')}
+      label={label || (cur ? 'Replace Invoice' : 'Upload Invoice')}
       btnIcon="ph-upload-simple"
       btnClass={`btn ${cur ? 'btn-ghost' : 'btn-warn'}${size}`}
     >

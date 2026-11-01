@@ -9,21 +9,16 @@ export default function OrderNeedDialog({ rows, toMake, showAll, quotes, filterH
       title={
         <>
           What open orders still need{' '}
-          <span className="badge b-none">{rows.length}</span>
+          {rows.length > 0 && <span className="badge b-none">{rows.length}</span>}
           {toMake > 0 && <span className="badge b-bad">{qty(toMake)} pcs still to make</span>}
         </>
       }
       footer={
-        <>
-          <Link prefetch={false} href={closeHref} className="btn btn-ghost">
-            Close
+        toMake > 0 ? (
+          <Link prefetch={false} href="/production?new=1" scroll={false} className="btn btn-primary">
+            <i className="ph ph-calendar-plus" />New Plan
           </Link>
-          {toMake > 0 && (
-            <Link prefetch={false} href="/production?new=1" scroll={false} className="btn btn-primary">
-              <i className="ph ph-calendar-plus" />New Plan
-            </Link>
-          )}
-        </>
+        ) : null
       }
       closeHref={closeHref}
     >

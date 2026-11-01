@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { batchQueues, db, fetchAll as all, filterOrders, requireRole } from '@/lib/server'
 import { activityQuery, stamp } from '@/lib/activity'
 import { csvResponse, itemListsCSV, toCSV } from '@/lib/csv'
-import { ITEM_LISTS, MASTERS, balanceOf, dmy, round2, totals, today } from '@/lib/tas'
+import { ITEM_LISTS, MASTERS, balanceOf, dmy, round2, totals, today, describe } from '@/lib/tas'
 
 // Excel downloads (CSV) for admins: /admin/export/<what>?from=YYYY-MM-DD&to=…&status=…&q=…
 const isDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '')
@@ -18,34 +18,95 @@ const EXPORTS = {
     const term = String(sp.q || '').replace(/[,()*%]/g, '').trim()
     const b = await batchQueues()
     const rows = await all(() => {
-      let q = period(filterOrders(db().from('orders').select('*, items:order_items(qty, total), batches:order_batches(do_no, pi_no)'), sp.status || '', b), 'quote_date', sp).order('id')
+      let q = period(
+        filterOrders(
+          db().from('orders').select(
+            '*, items:order_items(id, item_no, brand, grade, color_code, color_name, width, length, thickness, description, qty, price, total, dispatched_qty), batches:order_batches(id, do_no, pi_no, items:batch_items(id, order_item_id, do_qty, invoiced_qty, invoiced_price, invoiced_total))'
+          ),
+          sp.status || '',
+          b
+        ),
+        'quote_date',
+        sp
+      ).order('id')
       if (term) q = q.or(`quote_no.ilike.%${term}%,customer_name.ilike.%${term}%,doc_no.ilike.%${term}%`)
       return q
     })
-    return toCSV(rows, [
-      ['Quote No', (o) => o.quote_no], ['Quote Date', (o) => dmy(o.quote_date)], ['Customer Code', (o) => o.customer_code],
-      ['Customer', (o) => o.customer_name], ['Salesperson', (o) => o.salesperson_name], ['Status', (o) => o.status],
-      ['Dispatch', (o) => o.dispatch_status], ['Lines', (o) => o.items.length], ['Qty (PCS)', (o) => o.items.reduce((n, i) => n + Number(i.qty), 0)],
-      ['Subtotal', (o) => orderTotal(o).subtotal], ['Transport', (o) => orderTotal(o).transport], ['VAT', (o) => orderTotal(o).vat],
-      ['Total (SAR)', (o) => orderTotal(o).total], ['DO Nos', (o) => o.batches.map((b) => b.do_no).filter(Boolean).join(' ')],
-      ['PI Nos', (o) => o.batches.map((b) => b.pi_no).filter(Boolean).join(' ')], ['Tax Invoice', (o) => (o.tax_invoice_path ? 'Yes' : 'No')],
-      ['Approved / Rejected By', (o) => o.action_by], ['Reason', (o) => o.reject_reason || o.short_close_reason], ['Notes', (o) => o.notes],
+
+    const itemRows = rows.flatMap((o) => {
+      const items = (o.items && o.items.length > 0)
+        ? [...o.items].sort((a, b) => (a.item_no || 0) - (b.item_no || 0))
+        : [null]
+
+      return items.map((it) => {
+        let doQty = 0
+        let piQty = 0
+        let piPrice = ''
+
+        if (it) {
+          const bis = (o.batches || []).flatMap((b) => b.items || []).filter((bi) => bi.order_item_id === it.id)
+          doQty = bis.reduce((sum, bi) => sum + Number(bi.do_qty || 0), 0)
+          if (!doQty && it.dispatched_qty) doQty = Number(it.dispatched_qty || 0)
+
+          piQty = bis.reduce((sum, bi) => sum + Number(bi.invoiced_qty || 0), 0)
+
+          const piPrices = bis
+            .filter((bi) => bi.invoiced_price != null && Number(bi.invoiced_qty || 0) > 0)
+            .map((bi) => Number(bi.invoiced_price))
+
+          if (piPrices.length > 0) {
+            const unique = [...new Set(piPrices)]
+            piPrice = unique.length === 1 ? unique[0] : unique.join(', ')
+          }
+        }
+
+        return { order: o, item: it, doQty, piQty, piPrice }
+      })
+    })
+
+    return toCSV(itemRows, [
+      ['Quote No', (r) => r.order.quote_no],
+      ['Quote Date', (r) => dmy(r.order.quote_date)],
+      ['Customer Code', (r) => r.order.customer_code],
+      ['Customer', (r) => r.order.customer_name],
+      ['Salesperson', (r) => r.order.salesperson_name],
+      ['Status', (r) => r.order.status],
+      ['Dispatch', (r) => r.order.dispatch_status],
+      ['Line', (r) => (r.item ? r.item.item_no : '')],
+      ['Description', (r) => (r.item ? describe(r.item) || r.item.description : '')],
+      ['Color', (r) => (r.item ? r.item.color_name || r.item.color_code || '' : '')],
+      ['Quotation Qty (PCS)', (r) => (r.item ? r.item.qty : '')],
+      ['DO Qty (PCS)', (r) => (r.item ? r.doQty : '')],
+      ['PI Qty (PCS)', (r) => (r.item ? r.piQty : '')],
+      ['Quotation Price (SAR)', (r) => (r.item ? r.item.price : '')],
+      ['PI Price (SAR)', (r) => (r.item ? r.piPrice : '')],
+      ['Line Total (SAR)', (r) => (r.item ? r.item.total : '')],
+      ['Subtotal', (r) => orderTotal(r.order).subtotal],
+      ['Transport', (r) => orderTotal(r.order).transport],
+      ['VAT', (r) => orderTotal(r.order).vat],
+      ['Total (SAR)', (r) => orderTotal(r.order).total],
+      ['DO Nos', (r) => (r.order.batches || []).map((b) => b.do_no).filter(Boolean).join(' ')],
+      ['PI Nos', (r) => (r.order.batches || []).map((b) => b.pi_no).filter(Boolean).join(' ')],
+      ['Tax Invoice', (r) => (r.order.tax_invoice_path ? 'Yes' : 'No')],
+      ['Approved / Rejected By', (r) => r.order.action_by],
+      ['Reason', (r) => r.order.reject_reason || r.order.short_close_reason],
+      ['Notes', (r) => r.order.notes],
     ])
   },
   lines: async (sp) => {
     const rows = await all(() => period(db().from('order_items').select('*, order:orders!inner(quote_no, quote_date, customer_name, status)'), 'order.quote_date', sp).order('order_id').order('item_no'))
     return toCSV(rows, [
       ['Quote No', (r) => r.order.quote_no], ['Quote Date', (r) => dmy(r.order.quote_date)], ['Customer', (r) => r.order.customer_name],
-      ['Order Status', (r) => r.order.status], ['Line', (r) => r.item_no], ['Description', (r) => r.description], ['Color', (r) => r.color_name],
+      ['Order Status', (r) => r.order.status], ['Line', (r) => r.item_no], ['Description', (r) => describe(r) || r.description], ['Color', (r) => r.color_name],
       ['Qty (PCS)', (r) => r.qty], ['M2', (r) => r.m2], ['Unit Price', (r) => r.price], ['Total', (r) => r.total],
       ['Plant Status', (r) => r.production_status], ['Dispatched', (r) => r.dispatched_qty], ['Balance', (r) => balanceOf(r)],
     ])
   },
   dispatches: async (sp) => {
-    const rows = await all(() => period(db().from('dispatches').select('*, order:orders(quote_no, customer_name), item:order_items(item_no, description)'), 'dispatch_date', sp).order('dispatch_date').order('id'))
+    const rows = await all(() => period(db().from('dispatches').select('*, order:orders(quote_no, customer_name), item:order_items(item_no, brand, grade, color_code, color_name, width, length, thickness, description)'), 'dispatch_date', sp).order('dispatch_date').order('id'))
     return toCSV(rows, [
       ['Date', (r) => dmy(r.dispatch_date)], ['Quote No', (r) => r.order?.quote_no], ['Customer', (r) => r.order?.customer_name],
-      ['Line', (r) => r.item?.item_no], ['Description', (r) => r.item?.description], ['Qty (PCS)', (r) => r.qty],
+      ['Line', (r) => r.item?.item_no], ['Description', (r) => (r.item ? describe(r.item) || r.item.description : '')], ['Qty (PCS)', (r) => r.qty],
       ['Vehicle No', (r) => r.vehicle_no], ['Transporter', (r) => r.transporter], ['LR No', (r) => r.lr_no], ['Driver', (r) => r.driver], ['By', (r) => r.by_name],
     ])
   },

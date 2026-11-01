@@ -2,6 +2,17 @@ import { HelpBox } from './ui'
 // "What is this page for" box at the top of the store and production pages: one plain sentence and, where there is
 // something to do, the steps in order. Written for people who don't use computers much.
 export const HELP = {
+  orders: {
+    icon: 'ph-list-checks',
+    text: 'Create quotations, track customer orders, schedule production, dispatch goods, and invoice.',
+    steps: [
+      'Press New quotation to draft a quote with customer details, panel specifications and pricing',
+      'The approver reviews and approves the quotation',
+      'Track production and mark finished pieces ready for dispatch',
+      'Press Ship to generate a Delivery Order (DO) and dispatch goods',
+      'Generate a Proforma Invoice (PI) and attach the tax invoice when billed',
+    ],
+  },
   'rm-stock': { icon: 'ph-warehouse', text: 'How much raw material is in each store and on each production line. A red number means it is below the minimum: order more.' },
   po: {
     icon: 'ph-shopping-cart', text: 'Order raw material from a supplier.',
@@ -16,8 +27,8 @@ export const HELP = {
     steps: ['Select or create a panel recipe (Grade, Thickness, Top & Bottom Skin)', 'Check layer consumption rates per M2 and scrap allowances', 'Use the live calculator or issue materials directly to a production line'],
   },
   issue: {
-    icon: 'ph-arrows-left-right', text: 'Send raw material from the store to a production line.',
-    steps: ['Press New issue', 'Choose From store and To line', 'Choose the materials and how much', 'Press Save issue and print the slip for signatures'],
+    icon: 'ph-arrows-left-right', text: 'Raw material transfers from main storage to a production line. Issues are created automatically when entering shift output (DPR) or auto-issuing for a plan.',
+    steps: ['Materials are auto-issued when entering shift DPR or clicking Auto-issue on a plan', 'Use New issue only for ad-hoc manual transfers', 'The list below shows all manual and automatic issues with full audit trail'],
   },
   adjust: {
     icon: 'ph-sliders-horizontal', text: 'Fix the stock when a count shows a difference. Use a minus sign for stock that is missing or damaged.',

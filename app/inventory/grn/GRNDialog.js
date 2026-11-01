@@ -12,7 +12,7 @@ export default function GRNDialog({ grn, s, me, closeHref }) {
 
   const footer = (
     <>
-      <PrintButton cls="btn btn-ghost" />
+      
       {grn.po && (
         <Link prefetch={false} href={`/inventory/po?view=${grn.po.id}`} className="btn btn-ghost">
           <i className="ph ph-shopping-cart" />View {grn.po.po_no}
@@ -52,6 +52,7 @@ export default function GRNDialog({ grn, s, me, closeHref }) {
 
   return (
     <RouteDialog
+      print={grn.grn_no}
       key={grn.id}
       icon="ph-seal-check"
       title={

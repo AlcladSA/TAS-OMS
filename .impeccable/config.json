@@ -44,6 +44,42 @@
         ],
         "createdAt": "2026-10-30T18:42:01.128Z",
         "reason": "Claude: .tw is a table scroll wrapper; every th/td inside has 9px 12px padding, so no text touches its border"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "C:/Users/Admin/Desktop/APPS/Saudi Projects/tas-oms/FLOW-AUDIT-2026-10-31.html"
+        ],
+        "createdAt": "2026-10-31T08:45:26.697Z",
+        "reason": "Claude: scanner pairs dark-theme tokens (#9aa4ae, #232a31) with light-theme backgrounds; each theme's own pairs pass AA"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "C:/Users/Admin/Desktop/APPS/Saudi Projects/tas-oms/FLOW-AUDIT-2026-10-31.html"
+        ],
+        "createdAt": "2026-10-31T08:45:55.844Z",
+        "reason": "Claude: left stripe encodes finding severity (P0-P3), intentional state marker"
+      },
+      {
+        "rule": "wide-tracking",
+        "value": "*",
+        "files": [
+          "C:/Users/Admin/Desktop/APPS/Saudi Projects/tas-oms/FLOW-AUDIT-2026-10-31.html"
+        ],
+        "createdAt": "2026-10-31T08:45:56.050Z",
+        "reason": "Claude: tracking only on short uppercase labels (h2, eyebrow, table heads)"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "C:/Users/Admin/Desktop/APPS/Saudi Projects/tas-oms/FLOW-AUDIT-2026-10-31.html"
+        ],
+        "createdAt": "2026-10-31T08:45:56.271Z",
+        "reason": "Claude: inline code chips and severity pills, small padding by design"
       }
     ]
   }

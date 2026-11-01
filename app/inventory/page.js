@@ -62,7 +62,9 @@ export default async function Stock({ searchParams }) {
               <LinkBusy />
               <i className="ph ph-warning" style={{ color: !p.low && (lowCount ?? 0) > 0 ? 'var(--red)' : undefined }} />
               Below minimum
-              <span className={`badge ${!p.low && (lowCount ?? 0) > 0 ? 'b-bad' : 'b-none'}`}>{lowCount ?? 0}</span>
+              {(lowCount ?? 0) > 0 && (
+                <span className={`badge ${!p.low ? 'b-bad' : 'b-none'}`}>{lowCount}</span>
+              )}
             </IntentLink>
 
             {/* Store Select */}
@@ -98,6 +100,9 @@ export default async function Stock({ searchParams }) {
             <a className="btn btn-ghost btn-sm" href={`/inventory/export?${p.qs}`} title="Download CSV">
               <i className="ph ph-download-simple" />Export
             </a>
+            <Link prefetch={false} href={`/production/reports?tab=consumption&from=${p.from}&to=${p.to}`} className="btn btn-ghost btn-sm" title="View Day-wise Material Consumption">
+              <i className="ph ph-calendar" />Day-wise consumption
+            </Link>
           </form>
 
           {/* Action Modals: Opening Stock & Stock Adjustment */}

@@ -115,7 +115,7 @@ export default function NewPlanDialog({
           <div className="tbl-top">
             <h2 className="tbl-ttl">
               <i className="ph ph-list-checks" />What open orders still need{' '}
-              <span className="badge b-none">{displayRows.length}</span>
+              {displayRows.length > 0 && <span className="badge b-none">{displayRows.length}</span>}
               {toMake > 0 && <span className="badge b-bad">{qty(toMake)} pcs still to make</span>}
             </h2>
             <div className="tbl-filters">

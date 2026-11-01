@@ -194,11 +194,11 @@ export default function Shell({ me, nav, settings, logout, children }) {
   const active = (href) => {
     const [path, query] = href.split('?')
     if (query) return pathname === path && query === `status=${status}`
-    if (path === '/orders') return pathname === '/orders' && !status
+    if (path === '/orders') return pathname === '/orders'
     return href === best
   }
   const [title, sub] = pathname === '/orders'
-    ? LIST_TITLES[status] || LIST_TITLES[sp.get('show') === 'all' ? 'ALL' : MY_WORK_ROLES.includes(me.role) ? 'MINE' : 'ACTIVE']
+    ? LIST_TITLES[status] || LIST_TITLES[sp.get('show') === 'all' ? 'ALL' : 'ACTIVE']
     : (PAGES.find(([re]) => re.test(pathname)) || [null, 'TAS OMS', '']).slice(1)
   // IntentLink prefetches on hover/touch (150-300 ms head start).
   // staleTimes.dynamic: 30 keeps the prefetched page ready for 30s.
