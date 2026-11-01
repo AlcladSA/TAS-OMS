@@ -933,3 +933,13 @@ Audit: FLOW-AUDIT-2026-10-31.html (https://claude.ai/artifact/1WfXyPwRY923p3dcQK
   - Verified across all 3,813 database finished goods: **3,813 / 3,813 (100%) layer match rate with 0 BOM failures**.
 - **Dual-code SKU searchability**: Kept human-readable technical specification codes as primary identifiers for factory operations, while embedding the ERP SKU numbers (`[SKU: ...]`) into descriptions, allowing search inputs across the application to instantly find materials and panels by either ERP number, color name, or dimension.
 - **Label deduplication safeguard**: Updated `fgLabel(f)` in `lib/production.js` to guard against duplicating color names when item codes already contain the color name.
+
+## 58. Clean Raw Materials wipe and reload from Excel (2 Nov 2026)
+- **Complete Raw Material wipe & fresh reload**: Fully wiped all previously generated/seeded materials from Supabase and reloaded fresh directly from `Item_data.xlsx`.
+- **Real ERP Codes & Names applied**:
+  - `CODE` = The real 10-digit ERP SKU from Excel (e.g. `1000030446`).
+  - `NAME` = The real Item Name from Excel (e.g. `AL4001-SDPE-0.18*1270-Industrial Ash`).
+  - Completely purged all old synthetic names (e.g., `Industrial Ash Coil (0.18*1270)`).
+  - Exact count in DB: 2,206 clean materials (2,204 from Excel + 2 retained 1510 mm SS10+ protective films).
+- **Transaction re-linking**: Safely remapped and preserved all child records (`po_items`, `grn_items`, `transfer_items`, `production_consumptions`, `stock_moves`, and `core_settings`) to the fresh material IDs without breaking referential integrity.
+- **BOM verification**: Re-verified BOM engine across all 3,813 finished goods with the fresh materials dataset — **100% layer match rate (3,813 / 3,813) with 0 failures**.
