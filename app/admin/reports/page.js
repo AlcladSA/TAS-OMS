@@ -6,7 +6,7 @@ import { int, money } from '@/lib/tas'
 import ReportsHead from './ReportsHead'
 import { Chart, weekOf, weeks } from './Charts'
 
-export const metadata = { title: { absolute: 'Reports · TAS OMS' } }
+export const metadata = { title: { absolute: 'Reports · TAS OS' } }
 
 // One headline number for the period; the whole tile links to its detailed report.
 function Kpi({ href, icon, value, label, sub, bad }) {

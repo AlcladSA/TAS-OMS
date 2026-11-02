@@ -992,3 +992,13 @@ Audit: FLOW-AUDIT-2026-10-31.html (https://claude.ai/artifact/1WfXyPwRY923p3dcQK
   - Successfully auto-archived `PO-2026-003.pdf` (351,147 bytes) into `Aluclad / Purchase Orders /`.
   - Successfully generated and synced `Orders_2026-11.csv` (612 bytes) into `Aluclad / Monthly Exports /`.
   - Production build compiled cleanly with Next.js Turbopack, all 18 unit tests passing.
+
+## 62. System Rebranding to TAS OS (2 Nov 2026)
+- **Application Rebranding**: Formally renamed the system from **TAS OMS** (Order Management System) to **TAS OS** (*Operations System*), recognizing that the platform now encompasses factory-wide operations: Engineering BOM engine, Raw Material & Finished Goods stock ledger, Shift Production DPRs, Logistics Dispatch, and Cloud Archiving.
+- **Surface updates**:
+  - Sidebar brand name (`.sb-name` in `app/Shell.js`) updated to **TAS OS**.
+  - Document & browser tab title templates updated to `%s · TAS OS` in `app/layout.js`, `app/admin/layout.js`, and `app/admin/reports/layout.js`.
+  - Sign-in screen brand header in `app/login/page.js` updated to **TAS OS**.
+  - PWA Web App Manifest (`app/manifest.js`) name and short_name updated to **TAS OS**, description updated to *TAS International Operations & Manufacturing System*.
+  - Offline fallback page (`public/offline.html`) updated to **TAS OS**.
+- **Verification**: Next.js production build succeeded in 1389ms, all 18 unit tests passing. Committed to git.

@@ -2,7 +2,7 @@ import { currentUser } from '@/lib/server'
 import SettingsShell from './SettingsShell'
 
 export const metadata = {
-  title: { default: 'Settings', template: '%s · Settings · TAS OMS' },
+  title: { default: 'Settings', template: '%s · Settings · TAS OS' },
 }
 
 export default async function AdminLayout({ children }) {
