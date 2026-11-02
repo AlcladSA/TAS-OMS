@@ -960,3 +960,12 @@ Audit: FLOW-AUDIT-2026-10-31.html (https://claude.ai/artifact/1WfXyPwRY923p3dcQK
   - Full catalog BOM validation on all 3,813 database finished goods (`verify-db-bom.mjs`): **3,813 / 3,813 (100%) layer match rate with 0 BOM failures**.
   - All 18 unit tests passing (`lib/tas.test.mjs`, `lib/bom.test.mjs`, `lib/icons.test.mjs`).
   - Production build compiled cleanly with Next.js Turbopack in 998ms.
+
+## 60. Modern Typography upgrade to Geist & Geist Mono (2 Nov 2026)
+- **Typography modernization**: Replaced the default Windows system font stack (Segoe UI) with **Geist** (`GeistSans`) and **Geist Mono** (`GeistMono`) via the official `geist` package.
+- **Hierarchical font application**:
+  - `Geist Sans` (`--font-geist-sans`): Applied to all core UI chrome, navigation items, page titles, table headers, form inputs, and status badges.
+  - `Geist Mono` (`--font-geist-mono`): Applied to all technical data fields, document reference numbers (`PO-2026-003`, `Q-2026-001`), 10-digit ERP SKUs (`1000032662`), quantities, weights (`KG`, `M2`), dates, and financial figures (`SAR 439,500.00`).
+- **Tabular figures & font smoothing**: Enforced `font-variant-numeric: tabular-nums` and `font-feature-settings: "tnum" 1` across numeric columns and `.font-mono` utilities, ensuring currency decimals and quantity columns remain vertically aligned across tables.
+- **Zero layout shift & offline bundling**: Self-hosted directly inside the Next.js bundle via `geist/font/sans` and `geist/font/mono`, eliminating external Google Font CDN latency and external network dependencies.
+- **Verification**: Tested live on `/inventory/po`, `/orders`, and `/production`. Next.js Turbopack production build succeeded in 1350ms, all 18 unit tests passed cleanly.

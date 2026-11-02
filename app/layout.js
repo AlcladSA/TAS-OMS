@@ -8,6 +8,8 @@ if (process.env.NODE_ENV === 'development') {
 
 import './globals.css'
 import './icons/phosphor.css' // only the icons in use: npm run icons
+import { GeistSans } from 'geist/font/sans'
+import { GeistMono } from 'geist/font/mono'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { MY_WORK, authClient, currentUser, myWorkIds, openLineCount, orderCounts, sessionUserId } from '@/lib/server'
@@ -118,7 +120,7 @@ export default async function RootLayout({ children }) {
   // Admins see a warning on every page once any free-plan limit passes 80% (checked hourly).
   const near = me?.role === 'admin' ? usage?.filter((u) => u.share >= WARN) : null
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <head>
         {/* Plain blocking script on purpose: it must set the theme before first paint (next/script only preloads) */}
         <script id="theme-init" src="/theme-init.js" />
