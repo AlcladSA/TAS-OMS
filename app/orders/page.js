@@ -5,6 +5,7 @@ import { can } from '@/lib/tas'
 import { IntentLink, LinkBusy } from '../ui'
 import OrdersView from './OrdersView'
 import PageHelp from '../PageHelp'
+import DriveSyncButton from '../DriveSyncButton'
 
 // Workflow pipeline stages:
 const STAGES = [
@@ -219,9 +220,12 @@ export default async function Orders({ searchParams }) {
               <input className="tsearch" name="q" defaultValue={term} placeholder="Quote no, customer, DO/PI no" aria-label="Search this list" />
             </form>
             {boss && (
-              <a className="btn btn-ghost btn-sm" href={`/admin/export/orders?${exportParams}`}>
-                <i className="ph ph-download-simple" />Export
-              </a>
+              <>
+                <a className="btn btn-ghost btn-sm" href={`/admin/export/orders?${exportParams}`}>
+                  <i className="ph ph-download-simple" />Export
+                </a>
+                <DriveSyncButton label="Drive Sync" />
+              </>
             )}
             {can(me, 'sales') && (
               <IntentLink href="/orders/new" className="btn btn-primary btn-sm fab-phone">

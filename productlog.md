@@ -969,3 +969,26 @@ Audit: FLOW-AUDIT-2026-10-31.html (https://claude.ai/artifact/1WfXyPwRY923p3dcQK
 - **Tabular figures & font smoothing**: Enforced `font-variant-numeric: tabular-nums` and `font-feature-settings: "tnum" 1` across numeric columns and `.font-mono` utilities, ensuring currency decimals and quantity columns remain vertically aligned across tables.
 - **Zero layout shift & offline bundling**: Self-hosted directly inside the Next.js bundle via `geist/font/sans` and `geist/font/mono`, eliminating external Google Font CDN latency and external network dependencies.
 - **Verification**: Tested live on `/inventory/po`, `/orders`, and `/production`. Next.js Turbopack production build succeeded in 1350ms, all 18 unit tests passed cleanly.
+
+## 61. Google Drive PDF auto-archival & Monthly Orders CSV sync (2 Nov 2026)
+- **Automatic Document PDF Archival**:
+  - Enhanced `lib/drive.js` with `archiveDocumentPdf(docNo, fileName, buffer)` and `findOrCreateSubFolder(folderName)`.
+  - Automatically routes generated document PDFs by prefix to designated subfolders inside the root Google Drive folder (`Aluclad` / `1xG-vG5F52iLyJNPXdfQ0YbfqwUJmTAS2`):
+    - `Purchase Orders` (`PO-...`)
+    - `Quotations` (`Q-...`)
+    - `Delivery Orders` (`DO-...`)
+    - `Proforma Invoices` (`PI-...`)
+    - `Goods Received` (`GRN-...`)
+    - `Warehouse Issues` (`ISS-...`)
+    - `Production DPR` (`DPR-...`)
+  - Prevents duplicate clutter: uses `uploadOrUpdateFile` with Google Drive `PATCH` to update existing documents in-place when re-downloaded.
+  - Background async integration: updated `downloadPdfFromElement` in `lib/pdf.js` to dispatch generated PDF blobs to `/api/drive/archive-pdf` automatically whenever users download any document.
+- **Monthly Orders CSV Sync**:
+  - Implemented `syncMonthlyOrdersCsvToDrive(yearMonth)` in `lib/drive.js` and route `/api/drive/sync-orders`.
+  - Queries all orders within the month with items, color names, dimensions, delivery quantities, proforma amounts, VAT, transport, and batch numbers.
+  - Generates detailed UTF-8 BOM CSV and uploads/updates `Monthly Exports/Orders_YYYY-MM.csv` in Google Drive.
+  - Added `DriveSyncButton` component to the Orders page header and the Reports Export menu for one-click manual sync with live spinning/check feedback.
+- **Live Verification**:
+  - Successfully auto-archived `PO-2026-003.pdf` (351,147 bytes) into `Aluclad / Purchase Orders /`.
+  - Successfully generated and synced `Orders_2026-11.csv` (612 bytes) into `Aluclad / Monthly Exports /`.
+  - Production build compiled cleanly with Next.js Turbopack, all 18 unit tests passing.

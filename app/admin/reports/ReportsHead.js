@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { DateRange, LinkBusy } from '../../ui'
 import PageTabs from '../../PageTabs'
+import DriveSyncButton from '../../DriveSyncButton'
 
 export const REPORTS = [
   { key: '', label: 'Overview', icon: 'ph-squares-four' },
@@ -51,6 +52,10 @@ export default function ReportsHead({ tab, p, exports = [], periodless }) {
                 {exports.map(([k, l]) => (
                   <a key={k} className="dl-item" href={`/admin/export/${k}?${p.qs}`}><i className="ph ph-file-csv" />{l}</a>
                 ))}
+                <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+                <div style={{ padding: '4px 6px' }}>
+                  <DriveSyncButton label="Sync Month CSV to Drive" />
+                </div>
               </div>
             </details>
           )}
