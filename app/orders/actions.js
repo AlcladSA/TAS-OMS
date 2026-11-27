@@ -8,10 +8,10 @@ import { fgPosition } from '@/lib/production'
 import { PRODUCTION, calcM2, prodLabel, prodStatus, day, describe, dispatchOpen, int, lineTotal, money, plural, readyOf, today, totals } from '@/lib/tas'
 
 const num = (v) => (String(v ?? '').trim() === '' ? NaN : Number(v))
-// After an action, land back where it was started: the order dialog, the list row or the plant page.
+// After an action, land back where it was started: the order dialog, the list row or Dispatch Items.
 const back = (fd, id) => {
   const b = String(fd.get('back') || '')
-  return /^\/(orders|plant)(\?|$)/.test(b) ? b : `/orders?view=${id}`
+  return /^\/(orders|dispatch)(\?|$)/.test(b) ? b : `/orders?view=${id}`
 }
 const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v)
 const ATTRS = ['brand', 'color_code', 'grade', 'core', 'skin', 'width', 'length', 'thickness']

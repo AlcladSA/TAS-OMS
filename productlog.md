@@ -1002,3 +1002,8 @@ Audit: FLOW-AUDIT-2026-10-31.html (https://claude.ai/artifact/1WfXyPwRY923p3dcQK
   - PWA Web App Manifest (`app/manifest.js`) name and short_name updated to **TAS OS**, description updated to *TAS International Operations & Manufacturing System*.
   - Offline fallback page (`public/offline.html`) updated to **TAS OS**.
 - **Verification**: Next.js production build succeeded in 1389ms, all 18 unit tests passing. Committed to git.
+
+## 64. Ready to ship is now its own sidebar page: Dispatch Items (27 Nov 2026)
+
+- The Orders / Ready to ship tab row is gone. **Dispatch Items** (`/dispatch`, ph-truck) sits right under Orders in the sidebar for plant roles (in the phone More sheet for admin / manager, so the bar keeps five tabs). Same table as before: Open / Ready / Pending / Partial / Dispatched, tick lines across orders, Mark ready, Ship, Plant stock.
+- Code: `app/dispatch/page.js` (was `app/plant/page.js`); `app/plant/page.js` now redirects `/plant?tab=&q=` to `/dispatch`. PlantClient and MarkReadyModal stay in `app/plant/`. Action back targets allow `/dispatch` (orders/actions.js).

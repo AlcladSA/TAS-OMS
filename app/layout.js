@@ -75,7 +75,9 @@ export default async function RootLayout({ children }) {
     const boss = ['admin', 'manager'].includes(me.role)
     nav = [
       { href: '/', label: 'Dashboard', icon: 'ph-squares-four' },
-      { href: '/orders', label: 'Orders', icon: 'ph-list-checks', badge: todo, match: can(me, 'plant') ? ['/plant'] : undefined },
+      { href: '/orders', label: 'Orders', icon: 'ph-list-checks', badge: todo },
+      // Every approved line in one flat list: mark ready, then ship. On phones it sits in More for admin / manager (five tabs).
+      can(me, 'plant') && { href: '/dispatch', label: 'Dispatch Items', icon: 'ph-truck', more: boss },
       ...(boss ? [
         // Flat navigation list: one clean item per major workflow hub
         { href: '/inventory/po', label: 'Purchasing', icon: 'ph-shopping-cart', badge: (me.role === 'admin' ? inv.po : 0) + (inv.grn || 0), match: ['/inventory/grn'], more: true },

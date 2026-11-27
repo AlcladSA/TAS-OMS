@@ -56,7 +56,7 @@ export default function OrderActions({ o, me, back, sm, openBatchPi, inDialog, o
               <input type="hidden" name="decision" value="approve" />
               <div className="modal-body">
                 <p>Approve the quotation for <b><bdi>{o.customer_name}</bdi></b> worth <b>SAR {money(t.total)}</b> (incl. VAT)?</p>
-                <p>The order then appears in Ready to Ship, where the plant marks finished pieces ready to ship.</p>
+                <p>The order's lines then appear in Dispatch Items, where the plant marks finished pieces ready to ship.</p>
               </div>
               <ModalFoot label="Approve" icon="ph-check-circle" cls="btn-success" />
             </form>
@@ -66,7 +66,7 @@ export default function OrderActions({ o, me, back, sm, openBatchPi, inDialog, o
 
       {/* Approved but nothing is marked ready yet: link directly to Production Floor */}
       {approved && dispatchOpen(o) && readyLines.length === 0 && can(me, 'plant') && (
-        <Link prefetch={false} href={`/plant?q=${o.quote_no}`} className={`btn btn-ghost${size}`} title="Go to Ready to Ship to mark finished pieces ready">
+        <Link prefetch={false} href={`/dispatch?q=${o.quote_no}`} className={`btn btn-ghost${size}`} title="Open Dispatch Items to mark finished pieces ready">
           <i className="ph ph-truck" />{sm ? 'Ready' : 'Ready to Ship'}
         </Link>
       )}

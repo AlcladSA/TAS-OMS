@@ -214,7 +214,7 @@ export default function PlantClient({ rows, isOpen, here, tab = 'open', counts =
               )}
             </p>
             {otherPopulated && (
-              <Link prefetch={false} href={`/plant?tab=${otherPopulated[0]}`} className="btn btn-ghost btn-sm">
+              <Link prefetch={false} href={`/dispatch?tab=${otherPopulated[0]}`} className="btn btn-ghost btn-sm">
                 View {TAB_NAMES[otherPopulated[0]]} ({otherPopulated[1]}) →
               </Link>
             )}
