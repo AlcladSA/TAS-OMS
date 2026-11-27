@@ -1,6 +1,6 @@
 import { Fragment } from 'react'
 import Link from 'next/link'
-import { QUEUE_MINE, batchQueues, db, fetchOrder, filterOrders, findOrder, myWorkIds, orderCounts, orderHistory, requireRole } from '@/lib/server'
+import { QUEUE_MINE, attachPayments, batchQueues, db, fetchOrder, filterOrders, findOrder, myWorkIds, orderCounts, orderHistory, requireRole } from '@/lib/server'
 import { can } from '@/lib/tas'
 import { IntentLink, LinkBusy } from '../ui'
 import OrdersView from './OrdersView'
@@ -14,6 +14,7 @@ const STAGES = [
   { status: 'AWAIT_DO', label: 'Ready to ship', icon: 'ph-truck' },
   { status: 'AWAIT_PI', label: 'Make PI', icon: 'ph-receipt' },
   { status: 'AWAIT_TAX', label: 'Tax invoice', icon: 'ph-upload-simple' },
+  { status: 'AWAIT_PAYMENT', label: 'Payment due', icon: 'ph-money' },
 ]
 
 // Secondary status filters:
@@ -33,7 +34,7 @@ const TITLES = {
 }
 const PAGE = 100
 // Lists whose filter also reads the DO/PI batches (batchQueues()).
-const BATCH_LISTS = ['ACTIVE', 'AWAIT_PI', 'AWAIT_TAX']
+const BATCH_LISTS = ['ACTIVE', 'AWAIT_PI', 'AWAIT_TAX', 'AWAIT_PAYMENT']
 // ?sort= values: column -> [order column, ascending]
 const SORTS = { newest: ['id', false], oldest: ['id', true], customer: ['customer_name', true], customer_desc: ['customer_name', false] }
 
@@ -69,7 +70,7 @@ export default async function Orders({ searchParams }) {
   const own = (q) => (me.role === 'sales' ? q.eq('salesperson_id', me.id) : q)
 
   const base = own(db().from('orders')
-    .select('id, quote_no, quote_date, customer_name, customer_code, contact_no, vat_no, cr_no, address, salesperson_name, status, dispatch_status, doc_no, do_date, pi_date, tax_invoice_path, transport, vat_rate, action_by, action_at, reject_reason, short_close_reason, notes, items:order_items(id, item_no, brand, grade, color_code, core, width, length, thickness, description, qty, price, total, delivered_qty, ready_qty, dispatched_qty, color_name, m2, production_status, coil_date), batches:order_batches(id, batch_no, do_no, do_date, pi_no, pi_date, tax_invoice_path, vehicle_no, driver, transport, items:batch_items(id, do_qty, order_item:order_items(brand, grade, color_code, core, color_name, width, length, thickness, description, price)))')
+    .select('id, quote_no, quote_date, customer_name, customer_code, contact_no, vat_no, cr_no, address, salesperson_name, status, dispatch_status, doc_no, do_date, pi_date, tax_invoice_path, transport, vat_rate, action_by, action_at, reject_reason, short_close_reason, notes, items:order_items(id, item_no, brand, grade, color_code, core, width, length, thickness, description, qty, price, total, delivered_qty, ready_qty, dispatched_qty, color_name, m2, production_status, coil_date), batches:order_batches(id, batch_no, do_no, do_date, pi_no, pi_date, tax_invoice_path, vehicle_no, driver, transport, items:batch_items(id, do_qty, do_m2, invoiced_m2, invoiced_price, invoiced_total, order_item:order_items(brand, grade, color_code, core, color_name, width, length, thickness, description, price)))')
     .order(SORTS[sort][0], { ascending: SORTS[sort][1] }).order('id', { ascending: false }).range((page - 1) * PAGE, page * PAGE))
   let q = status === 'MINE' ? QUEUE_MINE(base, mine) : filterOrders(base, status, b)
   if (term) q = q.or(`quote_no.ilike.%${term}%,customer_name.ilike.%${term}%,doc_no.ilike.%${term}%`)
@@ -84,6 +85,7 @@ export default async function Orders({ searchParams }) {
   const more = orders?.length > PAGE
   const rows = orders?.slice(0, PAGE)
   rows?.forEach((o) => o.items.sort((a, b) => a.item_no - b.item_no))
+  if (rows?.length) await attachPayments(rows) // each PI's paid amount, for Record Payment and the payment badge
 
   // The list's own URL part: nothing for the home list.
   const listOf = (s) => (s === home ? {} : s ? { status: s } : { show: 'all' })

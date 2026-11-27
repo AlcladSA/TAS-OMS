@@ -5,7 +5,7 @@ import { QUEUES, batchQueues, db, findOrder, getOrder, go, logEvent, orderHistor
 import { removeInvoices, saveInvoice } from '@/lib/drive'
 import { getSettings } from '@/lib/settings'
 import { fgPosition } from '@/lib/production'
-import { PRODUCTION, calcM2, prodLabel, prodStatus, day, describe, dispatchOpen, int, lineTotal, money, plural, readyOf, today, totals } from '@/lib/tas'
+import { PAY_METHODS, PRODUCTION, calcM2, prodLabel, prodStatus, day, describe, dispatchOpen, int, lineTotal, money, plural, readyOf, today, totals } from '@/lib/tas'
 
 const num = (v) => (String(v ?? '').trim() === '' ? NaN : Number(v))
 // After an action, land back where it was started: the order dialog, the list row or Dispatch Items.
@@ -508,6 +508,45 @@ export async function uploadTaxInvoice(fd) {
   await logEvent(o.id, me, old ? 'Tax invoice replaced' : 'Tax invoice uploaded', `${batch?.pi_no ? batch.pi_no + ': ' : ''}${file.name}`)
   revalidatePath('/', 'layout')
   go(path, 'ok', 'Tax invoice uploaded.')
+}
+
+// Payment received against one PI (accounts). Part payments add up; record_payment (migrate-023) refuses more
+// than the balance and keeps the PI's paid-in-full flag, which takes the order off Payment due.
+export async function recordPayment(fd) {
+  const me = await requireRole('accounts')
+  const o = await getOrder(fd.get('id'), me)
+  const path = back(fd, o.id)
+  const batch = (o.batches || []).find((b) => String(b.id) === String(fd.get('batch_id')))
+  if (!batch?.pi_no) go(path, 'error', 'Make the PI first: payments are recorded against it.')
+  const amount = num(fd.get('amount'))
+  const date = String(fd.get('paid_on') || '')
+  const method = String(fd.get('method') || '')
+  if (!(amount > 0)) go(path, 'error', 'Enter the amount received (above 0).')
+  if (!isDate(date) || date > today()) go(path, 'error', 'Pick the date the payment was received, not in the future.')
+  if (!PAY_METHODS.includes(method)) go(path, 'error', 'Pick how it was paid.')
+  const ref = String(fd.get('reference') || '').trim().slice(0, 100)
+  const { data: st, error } = await db().rpc('record_payment', {
+    p_batch: batch.id, p_amount: amount, p_date: date, p_method: method, p_ref: ref, p_note: String(fd.get('note') || '').trim().slice(0, 300), p_by: me.full_name,
+  })
+  if (error) go(path, 'error', /Could not find the function|does not exist/.test(error.message) ? 'Run migrate-023.sql in Supabase first.' : error.message)
+  await logEvent(o.id, me, 'Payment received', `${batch.pi_no}: SAR ${money(amount)} · ${method}${ref ? ` · ${ref}` : ''} · ${st === 'PAID' ? 'paid in full' : 'part payment'}`)
+  revalidatePath('/', 'layout')
+  go(path, 'ok', `SAR ${money(amount)} recorded against ${batch.pi_no}${st === 'PAID' ? ': paid in full.' : '.'}`)
+}
+
+// Takes back a payment entered by mistake (accounts).
+export async function deletePayment(fd) {
+  const me = await requireRole('accounts')
+  const o = await getOrder(fd.get('id'), me)
+  const path = back(fd, o.id)
+  const { data: p } = await db().from('payments').select('id, amount, paid_on, batch_id').eq('id', fd.get('payment_id') || 0).eq('order_id', o.id).maybeSingle()
+  if (!p) go(path, 'error', 'That payment was already removed.')
+  const { error } = await db().rpc('delete_payment', { p_payment: p.id })
+  if (error) go(path, 'error', error.message)
+  const pi = (o.batches || []).find((b) => b.id === p.batch_id)?.pi_no || 'PI'
+  await logEvent(o.id, me, 'Payment removed', `${pi}: SAR ${money(p.amount)} of ${day(p.paid_on)}`)
+  revalidatePath('/', 'layout')
+  go(path, 'ok', `Payment of SAR ${money(p.amount)} removed from ${pi}.`)
 }
 
 // The rest of the DO will never ship: stop dispatching it (PI and tax invoice carry on as normal).

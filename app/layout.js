@@ -67,7 +67,7 @@ export default async function RootLayout({ children }) {
     const todo = mineIds ? mineIds.length : [
       can(me, 'plant') ? c.AWAIT_DISPATCH : 0,
       can(me, 'approver') ? c.PENDING : 0,
-      can(me, 'accounts') ? c.AWAIT_PI + c.AWAIT_TAX : 0,
+      can(me, 'accounts') ? c.AWAIT_PI + c.AWAIT_TAX + (c.AWAIT_PAYMENT || 0) : 0,
       can(me, 'operations') ? c.AWAIT_DO : 0,
     ].reduce((a, b) => a + b, 0)
     // One link per page, grouped by job, in plain words (no tabs inside pages). Red numbers = work waiting there.

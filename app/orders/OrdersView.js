@@ -1,7 +1,7 @@
 'use client'
 import { Fragment, useState, useEffect, useOptimistic, useRef } from 'react'
 import Link from 'next/link'
-import { DISPATCH, STATUS, actionData, day, int, money, plural, totals, describe } from '@/lib/tas'
+import { DISPATCH, STATUS, actionData, day, int, money, payState, plural, totals, describe } from '@/lib/tas'
 import { ClickRow, CustName, DocsMenu, LinkBusy } from '../ui'
 import OrderDialog from './OrderDialog'
 import OrderActions from './OrderActions'
@@ -229,6 +229,13 @@ export default function OrdersView({
                       {o.status === 'APPROVED' && DISPATCH[o.dispatch_status]
                         ? <span className={`badge ${DISPATCH[o.dispatch_status][1]}`}>{DISPATCH[o.dispatch_status][0]}</span>
                         : <span className={`badge b-${o.status}`}>{STATUS[o.status] || o.status}</span>}
+                      {(() => {
+                        // Once there is a PI: what is still owed on the order's invoices (null paid = migrate-023 not run).
+                        const pis = d.batches.filter((b) => b.pi_no && b.paid != null)
+                        if (!pis.length) return null
+                        const due = pis.reduce((n, b) => n + payState(b.inv_total, b.paid).due, 0)
+                        return <span className={`cell-sub${due > 0 ? ' fw6' : ''}`}>{due > 0 ? `SAR ${money(due)} due` : 'Paid in full'}</span>
+                      })()}
                     </td>
                     <td className="num c-tot"><span className="fw6">{money(totals(o.items, o.transport, o.vat_rate).total)}</span><span className="cell-sub">{int(pcs)} PCS</span></td>
                     <td className="c-docs">

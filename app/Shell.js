@@ -17,6 +17,7 @@ const LIST_TITLES = {
   AWAIT_DISPATCH: ['In production', 'Orders being made on the floor'],
   AWAIT_PI: ['Make PI', 'Delivery Orders waiting for a Proforma Invoice'],
   AWAIT_TAX: ['Tax invoice', 'Proforma Invoices waiting for the tax invoice file'],
+  AWAIT_PAYMENT: ['Payment due', 'Invoices not paid in full yet'],
 }
 // Roles whose Orders page opens on My work (same keys as MY_WORK in lib/server.js)
 const MY_WORK_ROLES = ['approver', 'plant', 'operations', 'accounts']

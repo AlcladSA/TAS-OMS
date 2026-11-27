@@ -1,8 +1,8 @@
 'use client'
 import Link from 'next/link'
 import { useState } from 'react'
-import { balanceOf, can, dispatchOpen, int, money, readyOf, today, totals, describe } from '@/lib/tas'
-import { decide, generateBatchDO, generateBatchPI, uploadTaxInvoice } from './actions'
+import { PAY_METHODS, balanceOf, can, dispatchOpen, int, money, payState, readyOf, today, totals, describe } from '@/lib/tas'
+import { decide, generateBatchDO, generateBatchPI, recordPayment, uploadTaxInvoice } from './actions'
 import { FileDrop, Modal, ModalFoot } from '../ui'
 
 // Order actions: Approve/Reject, Production Floor link, Ship (when ready; makes the DO), Make PI per batch, Tax Invoice.
@@ -98,6 +98,17 @@ export default function OrderActions({ o, me, back, sm, openBatchPi, inDialog, o
         })
       })()}
 
+      {/* Payments: on a list row, the next step once every PI has its tax invoice; one button for the first PI with a
+          balance. In the order dialog each PI row has its own (inDialog). paid == null: migrate-023 not run yet. */}
+      {approved && can(me, 'accounts') && !inDialog && (() => {
+        const bs = o.batches || []
+        if (sm && (pendingPIBatches.length || bs.some((b) => b.pi_no && !b.tax_invoice_path))) return null
+        const unpaid = bs.filter((b) => b.pi_no && b.paid != null && payState(b.inv_total, b.paid).state !== 'PAID')
+        return unpaid.slice(0, sm ? 1 : unpaid.length).map((b) => (
+          <PaymentAction key={b.id} o={o} b={b} back={back} size={size}
+            label={`Record Payment${unpaid.length > 1 ? (sm ? ` (1 of ${unpaid.length})` : ` (${b.pi_no})`) : ''}`} />
+        ))
+      })()}
     </>
   )
 }
@@ -311,6 +322,54 @@ export function TaxAction({ o, b, back, label, size = ' btn-sm' }) {
           {cur && <p>The file already uploaded will be replaced.</p>}
         </div>
         <ModalFoot label={cur ? 'Replace' : 'Attach'} icon="ph-upload-simple" />
+      </form>
+    </Modal>
+  )
+}
+
+// Record a payment received against one PI: amount (the balance by default), date, method, reference.
+// b: { id, pi_no, inv_total, paid } from actionData.
+export function PaymentAction({ o, b, back, label = 'Record Payment', size = ' btn-sm' }) {
+  const p = payState(b.inv_total, b.paid || 0)
+  const id = `pay-${b.id}`
+  return (
+    <Modal title={`Payment for ${b.pi_no}`} icon="ph-money" label={label} btnIcon="ph-money" btnClass={`btn btn-success${size}`} size="small">
+      <form action={recordPayment}>
+        <input type="hidden" name="id" value={o.id} />
+        <input type="hidden" name="back" value={back} />
+        <input type="hidden" name="batch_id" value={b.id} />
+        <div className="modal-body">
+          <div className="sum" style={{ width: '100%', marginBottom: 14 }}>
+            <div>Invoice total <b>SAR {money(p.total)}</b></div>
+            <div>Received so far <b>SAR {money(p.paid)}</b></div>
+            <div className="grand">Balance <b>SAR {money(p.due)}</b></div>
+          </div>
+          <div className="fgrid-2">
+            <div className="fg">
+              <label htmlFor={`${id}-amount`}>Amount received (SAR) <span className="req">*</span></label>
+              <input id={`${id}-amount`} name="amount" type="number" inputMode="decimal" min={0.01} max={p.due} step="0.01" defaultValue={p.due || ''} required autoFocus />
+            </div>
+            <div className="fg">
+              <label htmlFor={`${id}-date`}>Date received <span className="req">*</span></label>
+              <input id={`${id}-date`} name="paid_on" type="date" defaultValue={today()} max={today()} required />
+            </div>
+            <div className="fg">
+              <label htmlFor={`${id}-method`}>Paid by <span className="req">*</span></label>
+              <select id={`${id}-method`} name="method" defaultValue={PAY_METHODS[0]} required>
+                {PAY_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div className="fg">
+              <label htmlFor={`${id}-ref`}>Reference</label>
+              <input id={`${id}-ref`} name="reference" maxLength={100} placeholder="Bank ref, cheque no…" />
+            </div>
+          </div>
+          <div className="fg mt-8">
+            <label htmlFor={`${id}-note`}>Note</label>
+            <input id={`${id}-note`} name="note" maxLength={300} placeholder="Optional" />
+          </div>
+        </div>
+        <ModalFoot label="Record Payment" icon="ph-check-circle" cls="btn-success" />
       </form>
     </Modal>
   )

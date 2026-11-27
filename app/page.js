@@ -43,7 +43,7 @@ export default async function Dashboard() {
   const toApprove = c.PENDING || 0
   const inProduction = c.AWAIT_DISPATCH || 0
   const readyToShip = c.AWAIT_DO || 0
-  const billing = (c.AWAIT_PI || 0) + (c.AWAIT_TAX || 0)
+  const billing = (c.AWAIT_PI || 0) + (c.AWAIT_TAX || 0) + (c.AWAIT_PAYMENT || 0)
   const totalActionItems = toApprove + billing
 
   return (
@@ -124,7 +124,7 @@ export default async function Dashboard() {
                 icon="ph-receipt"
                 n={billing}
                 label="4. Billing"
-                sub={billing > 0 ? `${c.AWAIT_PI || 0} PI · ${c.AWAIT_TAX || 0} tax invoice` : 'None pending'}
+                sub={billing > 0 ? `${c.AWAIT_PI || 0} PI · ${c.AWAIT_TAX || 0} tax invoice · ${c.AWAIT_PAYMENT || 0} payment due` : 'None pending'}
               />
             </div>
           </section>

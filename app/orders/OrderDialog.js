@@ -1,8 +1,8 @@
 import Link from 'next/link'
-import { DISPATCH, PRODUCTION, STATUS, prodLabel, actionData, balanceOf, can, day, dispatchOpen, int, money, plural, readyOf, totals, vatPct, describe } from '@/lib/tas'
-import { cancelOrder, deleteOrder, saveProduction, shortClose } from './actions'
+import { DISPATCH, PAY_BADGE, PRODUCTION, STATUS, prodLabel, actionData, balanceOf, can, day, dispatchOpen, int, invoiceTotal, money, payState, plural, readyOf, totals, vatPct, describe } from '@/lib/tas'
+import { cancelOrder, deleteOrder, deletePayment, saveProduction, shortClose } from './actions'
 import { CustName, LinkBusy, Modal, ModalFoot, PlantStatus, RouteDialog, DocView, TypeToConfirm } from '../ui'
-import OrderActions, { PiAction, TaxAction } from './OrderActions'
+import OrderActions, { PaymentAction, PiAction, TaxAction } from './OrderActions'
 import MarkReadyModal from '../plant/MarkReadyModal'
 
 // Order profile shown as a large dialog over the orders list (FMS viewOrderDetails).
@@ -27,6 +27,8 @@ export function progress(o) {
     batches, hasDO, of, piDone, taxDone,
     piPending: batches.length ? batches.filter((b) => b.do_date && !b.pi_no) : hasDO && !o.pi_date ? [{}] : [],
     taxPending: batches.length ? batches.filter((b) => b.pi_no && !b.tax_invoice_path) : o.pi_date && !o.tax_invoice_path ? [{}] : [],
+    // PIs not paid in full (b.paid is null until migrate-023 runs: then nothing counts as due).
+    payPending: batches.filter((b) => b.pi_no && b.paid != null && payState(invoiceTotal(b, o), b.paid).state !== 'PAID'),
   }
 }
 
@@ -43,7 +45,8 @@ function Tracker({ o, lastDispatch }) {
   const someReady = items.some((it) => readyOf(it) > 0 || Number(it.dispatched_qty) > 0)
   const invoiced = p.hasDO && p.taxDone === p.of
   const billOpen = p.piPending.length + p.taxPending.length > 0
-  const done = shipped && invoiced && !billOpen
+  const paid = invoiced && !billOpen && !p.payPending.length
+  const done = shipped && paid
 
   const steps = [
     { label: 'Quotation', short: 'Quote', icon: 'ph-file-text', done: true, time: day(o.quote_date) },
@@ -58,6 +61,7 @@ function Tracker({ o, lastDispatch }) {
       time: ds === 'PARTIAL' ? 'Partial' : day(lastDispatch),
     },
     { label: 'Invoiced', short: 'Invoiced', icon: 'ph-receipt', done: invoiced && !billOpen, active: approved && billOpen, time: p.of > 1 && p.taxDone < p.of ? `${p.taxDone} of ${p.of}` : null },
+    { label: 'Paid', short: 'Paid', icon: 'ph-money', done: paid, active: approved && invoiced && !billOpen && !paid, time: p.payPending.length && p.of > 1 ? `${p.of - p.payPending.length} of ${p.of}` : null },
     { label: 'Done', short: 'Done', icon: 'ph-check-circle', done },
   ]
   return (
@@ -89,8 +93,12 @@ function nextStep(o) {
   // Counts, not document numbers: the Shipments table below lists which DO / PI each one is.
   if (p.piPending.length) todo.push(<><b>Accounts</b> makes {p.piPending.length === 1 ? `the PI for ${name(p.piPending[0])}` : `${p.piPending.length} PIs`}</>)
   if (p.taxPending.length) todo.push(<><b>Accounts</b> attaches {p.taxPending.length === 1 ? `the tax invoice for ${p.taxPending[0].pi_no || 'the PI'}` : `${p.taxPending.length} tax invoices`}</>)
+  if (p.payPending.length) {
+    const due = p.payPending.reduce((n, b) => n + payState(invoiceTotal(b, o), b.paid).due, 0)
+    todo.push(<><b>Accounts</b> records payment: SAR {money(due)} due on {p.payPending.length === 1 ? p.payPending[0].pi_no : `${p.payPending.length} PIs`}</>)
+  }
 
-  if (!todo.length) return ['ok', 'ph-check-circle', <>Completed: dispatched, invoiced and every tax invoice uploaded.</>]
+  if (!todo.length) return ['ok', 'ph-check-circle', <>Completed: dispatched, invoiced{(o.batches || []).some((b) => b.paid != null) ? ' and paid in full' : ' and every tax invoice uploaded'}.</>]
   return ['info', 'ph-arrow-right', <>Next: {todo.map((t, i) => <span key={i}>{i ? (i === todo.length - 1 ? ' and ' : ', ') : ''}{t}</span>)}.</>]
 }
 
@@ -297,6 +305,7 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
                   <th>Delivery Order</th>
                   <th>Truck</th>
                   <th>Billing</th>
+                  <th>Payment</th>
                   <th className="r">Documents</th>
                 </tr>
               </thead>
@@ -324,6 +333,23 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
                       </div>
                       {b.pi_no && <div className="muted text-sm"><span className="doc-ref">{b.pi_no}</span> · {day(b.pi_date)}</div>}
                     </td>
+                    <td>
+                      {/* Payment against this PI: state, what came in of the total, and Record Payment while a balance is left */}
+                      {!b.pi_no || b.paid == null ? <span className="muted">—</span> : (() => {
+                        const ps = payState(invoiceTotal(b, o), b.paid)
+                        return (
+                          <>
+                            <div className="row-acts wrap">
+                              <span className={`badge ${PAY_BADGE[ps.state][1]}`}>{ps.state === 'PAID' && <i className="ph ph-check" />}{PAY_BADGE[ps.state][0]}</span>
+                              {approved && ps.state !== 'PAID' && can(me, 'accounts') && <PaymentAction o={act} b={actBatch[b.id]} back={back} />}
+                            </div>
+                            <div className="muted text-sm">
+                              SAR {money(ps.paid)} of {money(ps.total)}{ps.state === 'PARTIAL' && <> · <b>{money(ps.due)} due</b></>}
+                            </div>
+                          </>
+                        )
+                      })()}
+                    </td>
                     <td className="r">
                       <div className="row-acts wrap">
                         <DocView href={`/orders/${o.id}/print/do?batch=${b.id}`} icon="ph-truck" label="DO" title={`Delivery Order ${b.do_no}`} />
@@ -339,6 +365,45 @@ export default function OrderDialog({ o, history, me, back, closeHref, openBatch
               </tbody>
             </table>
           </div>
+          {o.payments?.length > 0 && (
+            <>
+              <h3 className="profile-section-ttl mt-16" style={{ fontSize: '0.875rem' }}>
+                <i className="ph ph-money" />Payments received <span className="badge b-none">SAR {money(o.payments.reduce((n, x) => n + Number(x.amount), 0))}</span>
+              </h3>
+              <div className="tbl-wrap">
+                <table className="tbl">
+                  <thead>
+                    <tr><th>Date</th><th>PI</th><th className="r">Amount (SAR)</th><th>Paid by</th><th>Reference</th><th>Entered by</th>{approved && can(me, 'accounts') && <th><span className="sr-only">Undo</span></th>}</tr>
+                  </thead>
+                  <tbody>
+                    {o.payments.map((x) => (
+                      <tr key={x.id}>
+                        <td className="nowrap" data-label="Date">{day(x.paid_on)}</td>
+                        <td className="doc-ref" data-label="PI">{batches.find((b) => b.id === x.batch_id)?.pi_no || '—'}</td>
+                        <td className="num fw6" data-label="Amount (SAR)">{money(x.amount)}</td>
+                        <td data-label="Paid by">{x.method}</td>
+                        <td data-label="Reference">{x.reference || <span className="muted">—</span>}{x.note && <div className="muted text-sm">{x.note}</div>}</td>
+                        <td className="nowrap" data-label="Entered by">{x.by_name}</td>
+                        {approved && can(me, 'accounts') && (
+                          <td data-label="">
+                            <Modal title="Remove payment" icon="ph-arrow-counter-clockwise" label="Undo" btnIcon="ph-arrow-counter-clockwise" btnClass="btn btn-ghost btn-sm" size="small">
+                              <form action={deletePayment}>
+                                {Hidden}<input type="hidden" name="payment_id" value={x.id} />
+                                <div className="modal-body">
+                                  <p>Remove the payment of <b>SAR {money(x.amount)}</b> received on <b>{day(x.paid_on)}</b>? Its invoice goes back to the balance it had before.</p>
+                                </div>
+                                <ModalFoot label="Remove payment" icon="ph-arrow-counter-clockwise" cls="btn-danger" />
+                              </form>
+                            </Modal>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </section>
       )}
 
