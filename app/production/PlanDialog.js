@@ -5,7 +5,8 @@ import { calcDprBOM } from '@/lib/bom'
 import { day, dmy, money, qty } from '@/lib/tas'
 import { PrintButton, RouteDialog } from '../ui'
 import Slip from '../inventory/Slip'
-import { autoIssuePlan } from './actions'
+import PlanBomCard from './PlanBomCard'
+import DeletePlanModal from './DeletePlanModal'
 
 export default function PlanDialog({ plan, stock, m2, s, closeHref, coreSettings, materials }) {
   if (!plan) return null
@@ -20,12 +21,16 @@ export default function PlanDialog({ plan, stock, m2, s, closeHref, coreSettings
     coreSettings, materials,
   )
   const bomReqs = bomRows.map((r) => ({
-    id: r.material_id, name: r.material_name, code: r.material_code, layer: r.layer_name, uom: r.uom, total_qty: r.system_qty,
+    key: r.key, id: r.material_id, name: r.material_name, code: r.material_code, layer: r.layer_name, uom: r.uom, total_qty: r.system_qty,
   }))
+  const bomFormId = `plan-bom-form-${plan.id}`
+  const matLite = (materials || []).map(({ id, code, name, uom }) => ({ id, code, name, uom }))
 
   const footer = (
     <>
-      
+      <div className="foot-acts-left">
+        <DeletePlanModal plan={plan} back={closeHref} />
+      </div>
       {plan.status === 'OPEN' && (
         <>
           {plan.issues?.length > 0 ? (
@@ -33,11 +38,9 @@ export default function PlanDialog({ plan, stock, m2, s, closeHref, coreSettings
               <i className="ph ph-check" />RM Issued: {plan.issues.map((i) => i.doc_no).join(', ')}
             </span>
           ) : (
-            <form action={autoIssuePlan.bind(null, plan.id)}>
-              <button type="submit" className="btn btn-ghost">
-                <i className="ph ph-magic-wand" />Auto-issue RM to line
-              </button>
-            </form>
+            <button type="submit" form={bomFormId} className="btn btn-ghost">
+              <i className="ph ph-magic-wand" />Auto-issue RM to line
+            </button>
           )}
           <Link prefetch={false} href={`/production/dpr/new?plan=${plan.id}`} className="btn btn-primary">
             <i className="ph ph-factory" />Enter production
@@ -156,74 +159,14 @@ export default function PlanDialog({ plan, stock, m2, s, closeHref, coreSettings
         {bomRows.missingCores.length > 0 && (
           <div className="banner error" role="alert"><i className="ph ph-warning-circle" /><span>No BOM settings for core type {bomRows.missingCores.join(', ')}: its raw material isn't in the list below.</span></div>
         )}
-        {bomReqs.length > 0 && (
-          <div className="card" style={{ marginTop: 16, border: '1px solid var(--border)' }}>
-            <div className="tbl-top">
-              <h2 className="tbl-ttl">
-                <i className="ph ph-receipt" />BOM Required Raw Material <span className="badge b-none">{money(m2)} M²</span>
-              </h2>
-              {plan.status === 'OPEN' && (
-                plan.issues?.length > 0 ? (
-                  <span className="badge b-ok">
-                    <i className="ph ph-check" />RM Issued: {plan.issues.map((i) => i.doc_no).join(', ')}
-                  </span>
-                ) : (
-                  <form action={autoIssuePlan.bind(null, plan.id)}>
-                    <button type="submit" className="btn btn-primary btn-sm">
-                      <i className="ph ph-magic-wand" />Auto-issue RM to Line
-                    </button>
-                  </form>
-                )
-              )}
-            </div>
-            <div className="tbl-wrap">
-              <table className="tbl">
-                <thead>
-                  <tr>
-                    <th>Required Material</th>
-                    <th>Layer Spec</th>
-                    <th className="r">Formula Needed</th>
-                    <th className="r">Plant Stock Today</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bomReqs.map((req, idx) => {
-                    const matchStock = (stock || []).find(
-                      (s) => (req.id && s.material_id === req.id) || (req.code && req.code !== '—' && s.code === req.code)
-                    )
-                    const stockQty = matchStock ? Number(matchStock.closing || 0) : 0
-                    const isEnough = stockQty >= req.total_qty
-                    return (
-                      <tr key={idx}>
-                        <td data-label="Material">
-                          <span className="mat-name">{req.name}</span>
-                          {req.code && req.code !== '—' && <span className="mat-sub">{req.code}</span>}
-                        </td>
-                        <td data-label="Layer Spec">
-                          <span className="text-xs muted">{req.layer}</span>
-                        </td>
-                        <td className="num fw7" data-label="Formula Needed" style={{ color: 'var(--text)' }}>
-                          {qty(req.total_qty)} {req.uom}
-                        </td>
-                        <td className="num fw6" data-label="Plant Stock Today">
-                          {matchStock ? `${qty(stockQty)} ${matchStock.uom}` : <span className="muted">0 {req.uom}</span>}
-                        </td>
-                        <td data-label="Status">
-                          {isEnough ? (
-                            <span className="badge b-ok">Available</span>
-                          ) : (
-                            <span className="badge b-danger">Shortage: -{qty(req.total_qty - stockQty)} {req.uom}</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        <PlanBomCard
+          plan={{ id: plan.id, plan_no: plan.plan_no, status: plan.status, issues: plan.issues }}
+          m2={m2}
+          bomReqs={bomReqs}
+          materials={matLite}
+          stock={stock}
+          formId={bomFormId}
+        />
 
         {/* ── RM in Plant Today ── */}
         <div className="card mt-16">

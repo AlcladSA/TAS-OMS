@@ -4,8 +4,12 @@ import { SHIFTS } from '@/lib/production'
 import { day, dmy, money, qty } from '@/lib/tas'
 import { PrintButton, RouteDialog } from '../../ui'
 import Slip from '../../inventory/Slip'
+import { SCRAP_TYPES } from '@/lib/bom'
 
-export default function DprDialog({ dpr, used, s, closeHref }) {
+// "1500 × 850 mm" for a rejected row cut to another size, else ''.
+const rejSize = (i) => (i.reject_width || i.reject_length ? `${qty(i.reject_width)} × ${qty(i.reject_length)} mm` : '')
+
+export default function DprDialog({ dpr, used, wastage = [], s, closeHref }) {
   if (!dpr) return null
   dpr.items?.sort((a, b) => a.id - b.id)
   const open = dpr.items?.filter((i) => !i.qc_at && i.good_qty > 0).length
@@ -13,6 +17,8 @@ export default function DprDialog({ dpr, used, s, closeHref }) {
   const totalGoodPcs = dpr.items.reduce((n, i) => n + Number(i.good_qty || 0), 0)
   const totalGoodM2 = dpr.items.reduce((n, i) => n + (i.good_qty || 0) * (i.f?.m2_per_pc || 0), 0)
   const totalRejected = dpr.items.reduce((n, i) => n + Number(i.rejected_qty || 0), 0)
+  const scrapKg = wastage.reduce((n, w) => n + Number(w.actual_kg || 0), 0)
+  const scrapExpected = wastage.reduce((n, w) => n + Number(w.expected_kg || 0), 0)
 
   const footer = (
     <>
@@ -105,6 +111,7 @@ export default function DprDialog({ dpr, used, s, closeHref }) {
                       <td data-label="Item">
                         <span className="mat-name">{i.f?.code}</span>
                         {i.f?.color_name && <span className="mat-sub">{i.f.color_name}</span>}
+                        {rejSize(i) && <span className="badge b-warn text-xs mt-2"><i className="ph ph-scissors" />Rejected, cut to {rejSize(i)}</span>}
                       </td>
                       <td className="num fw6" data-label="Good pcs">{qty(i.good_qty)}</td>
                       <td className="num" data-label="Good M2">{money(i.good_qty * (i.f?.m2_per_pc || 0))}</td>
@@ -226,6 +233,60 @@ export default function DprDialog({ dpr, used, s, closeHref }) {
             </div>
           </div>
         )}
+
+        {/* ── Table: Wastage / scrap generated (output to the Scrap store, not extra RM use) ── */}
+        {wastage.length > 0 && (
+          <div className="card mt-16">
+            <div className="tbl-top">
+              <h2 className="tbl-ttl">
+                <i className="ph ph-recycle" />Wastage / Scrap Generated <span className="badge b-none">{qty(scrapKg)} kg</span>
+              </h2>
+              <span className="muted text-sm">Weighed off the line and put into the plant&apos;s Scrap store</span>
+            </div>
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Scrap type</th>
+                    <th>Scrap material</th>
+                    <th className="r">Expected (BOM)</th>
+                    <th className="r">Actual weighed</th>
+                    <th className="r">Difference</th>
+                    <th>Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {wastage.map((w) => {
+                    const diff = Number(w.actual_kg) - Number(w.expected_kg)
+                    return (
+                      <tr key={w.id}>
+                        <td className="fw6" data-label="Scrap type">{SCRAP_TYPES[w.scrap_type]?.label || w.scrap_type}</td>
+                        <td data-label="Scrap material">
+                          <span className="mat-name">{w.m?.name}</span>
+                          {w.m?.code && <span className="mat-sub">{w.m.code}</span>}
+                        </td>
+                        <td className="num" data-label="Expected (BOM)">{Number(w.expected_kg) > 0 ? <>{qty(w.expected_kg)} <span className="muted text-xs">KG</span></> : <span className="muted">—</span>}</td>
+                        <td className="num fw6" data-label="Actual weighed">{qty(w.actual_kg)} <span className="muted text-xs">KG</span></td>
+                        <td className="num" data-label="Difference">
+                          {Number(w.expected_kg) > 0 ? `${diff > 0 ? '+' : ''}${qty(Math.round(diff * 10) / 10)} KG` : <span className="muted">—</span>}
+                        </td>
+                        <td data-label="Note">{w.note || <span className="muted">—</span>}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th colSpan={2} className="fw7">Total</th>
+                    <th className="num fw7">{scrapExpected ? `${qty(Math.round(scrapExpected * 10) / 10)} KG` : '—'}</th>
+                    <th className="num fw7">{qty(Math.round(scrapKg * 10) / 10)} KG</th>
+                    <th colSpan={2}></th>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Printable Slip: visible only when printed */}
@@ -243,10 +304,11 @@ export default function DprDialog({ dpr, used, s, closeHref }) {
           party={[
             ['OPERATOR', [dpr.operator, `Entered by ${dpr.by_name}`]],
             ['RM USED', (used || []).map((u) => `${u.m?.name} (${u.m?.code}): ${qty(-u.qty)} ${u.m?.uom}`)],
+            ...(wastage.length ? [['SCRAP OUT', wastage.map((w) => `${SCRAP_TYPES[w.scrap_type]?.label || w.scrap_type}: ${qty(w.actual_kg)} KG${Number(w.expected_kg) > 0 ? ` (BOM ${qty(w.expected_kg)})` : ''}`)]] : []),
           ]}
           heads={['ITEM (PRODUCT + SIZE)', 'GOOD PCS', 'GOOD M2', 'REJECTED', 'QC PASS / B / REJ']}
           rows={dpr.items.map((i) => [
-            `${i.f?.code}${i.reject_reason ? ` (rejected: ${i.reject_reason})` : ''}`,
+            `${i.f?.code}${rejSize(i) ? ` [cut to ${rejSize(i)}]` : ''}${i.reject_reason ? ` (rejected: ${i.reject_reason})` : ''}`,
             qty(i.good_qty),
             money(i.good_qty * (i.f?.m2_per_pc || 0)),
             qty(i.rejected_qty),

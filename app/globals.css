@@ -340,7 +340,12 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .btn-ic i { font-size: 1.125rem; margin: 0; }
 .btn-link { background: none; border: none; padding: 4px; min-width: 28px; min-height: 28px; font: inherit; color: var(--link); cursor: pointer; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; transition: background var(--dur-fast); }
 .btn-link:hover { background: var(--fill-2); }
-.btn-link.danger { color: var(--red); }
+/* Row remove (bin) buttons: grey at rest so a column of them doesn't read as a red stripe, red only when aimed at.
+   32 px target and a larger icon in table rows; disabled (last row can't go) visibly faded. */
+.btn-link.danger { color: var(--muted); }
+.btn-link.danger:hover:not(:disabled) { background: var(--bad-bg); color: var(--bad-fg); }
+.btn-link:disabled { opacity: .35; cursor: not-allowed; background: none; }
+.tbl td .btn-link { min-width: 32px; min-height: 32px; font-size: 1.125rem; vertical-align: middle; }
 .btn-link:focus-visible, .toast-x:focus-visible, .pw-eye:focus-visible, .logout-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .act-icon-btn { width: 30px; height: 28px; padding: 0 !important; justify-content: center; flex-shrink: 0; }
 .act-icon-btn i { font-size: 1rem; }
@@ -1772,6 +1777,12 @@ button.chip-link { border: 0; cursor: pointer; font-family: inherit; background:
 .orders-tbl .c-cust { min-width: 200px; white-space: normal; }
 :is(.orders-tbl, .plant-tbl) .cust-name { max-width: 260px; font-weight: 600; }
 :is(.orders-tbl, .plant-tbl) .cust-name > * { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* Dispatch Items: the name stays inside its 220 px cell (it used to run into Material). English wraps to two lines
+   instead of being cut; the Arabic line sits under it on the same left edge; hover shows the full name. */
+.plant-tbl .c-cust { width: 220px; }
+.plant-tbl .cust-name { display: flex; max-width: 100%; }
+.plant-tbl .cust-name > .cn-en { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.3; }
+.plant-tbl .cust-name > .cn-ar { text-align: left; }
 .orders-tbl :is(th, td):first-child { position: sticky; left: 0; z-index: 1; background-color: var(--card); }
 :is(.orders-tbl, .plant-tbl) :is(th, td):last-child { position: sticky; right: 0; z-index: 1; background-color: var(--card); box-shadow: inset 1px 0 0 var(--border); }
 .card > .tbl-wrap :is(.orders-tbl, .plant-tbl) thead th:is(:first-child, :last-child) { z-index: 3; }

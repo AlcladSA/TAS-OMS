@@ -4,9 +4,10 @@ import { Combobox } from '../../ui'
 import { createProduction } from '../actions'
 import ActionForm from '../../inventory/ActionForm'
 import FgSpecModal from '../FgSpecModal'
-import { calcDprBOM, DEFAULT_CORE_SETTINGS } from '@/lib/bom'
+import { calcDprBOM, DEFAULT_CORE_SETTINGS, SCRAP_TYPES } from '@/lib/bom'
 
-const blankRow = { item: '', plan_item: '', planned: null, good: '', rejected: '', reason: '' }
+// otherSize: a row of rejected pieces cut to another size than its product (no good pieces, own width × length).
+const blankRow = { item: '', plan_item: '', planned: null, good: '', rejected: '', reason: '', otherSize: false, reject_width: '', reject_length: '' }
 
 export default function DprForm({ fg, materials = [], planRows, options = {}, coreSettings = [], children }) {
   // Row keys are also field names, so they start at 1 on the server and in the browser alike.
@@ -22,9 +23,12 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
   )
   const [itemsList, setItemsList] = useState(fg)
   const [userEdits, setUserEdits] = useState({}) // { [cKey]: { material_id, actual_qty, reason, edited } }
+  const [removedKeys, setRemovedKeys] = useState(() => new Set())
   const [extraUsage, setExtraUsage] = useState([]) // manual extra materials
   const [specModalOpen, setSpecModalOpen] = useState(false)
   const [specTargetRow, setSpecTargetRow] = useState(null)
+  const [scrapEdits, setScrapEdits] = useState({}) // { [scrap_type]: { material_id, actual_kg, note } }
+  const [otherScrap, setOtherScrap] = useState([]) // extra scrap lines: { key, material_id, actual_kg, note }
   const next = useRef(100)
 
   const row = () => ({ ...blankRow, key: ++next.current })
@@ -50,10 +54,12 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
     const activeItems = rows
       .map((r) => {
         const itemObj = itemsList.find((f) => String(f.id) === String(r.item))
-        const good = Number(r.good) || 0
+        const good = r.otherSize ? 0 : Number(r.good) || 0
         const rej = Number(r.rejected) || 0
         if (!itemObj || (good + rej <= 0)) return null
-        return { fg_item: itemObj, good_qty: good, rejected_qty: rej }
+        return r.otherSize
+          ? { fg_item: itemObj, good_qty: 0, rejected_qty: rej, reject_width: Number(r.reject_width) || 0, reject_length: Number(r.reject_length) || 0 }
+          : { fg_item: itemObj, good_qty: good, rejected_qty: rej }
       })
       .filter(Boolean)
 
@@ -63,33 +69,35 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
 
   // Merge BOM calculations with user overrides
   const consumptionTable = useMemo(() => {
-    const base = bomRows.map((bom) => {
-      const edit = userEdits[bom.key] || {}
-      const material_id = edit.material_id !== undefined ? edit.material_id : (bom.material_id ? String(bom.material_id) : '')
-      const actual_qty = edit.actual_qty !== undefined ? edit.actual_qty : bom.system_qty
-      const reason = edit.reason !== undefined ? edit.reason : ''
-      const sys = Number(bom.system_qty) || 0
-      const act = Number(actual_qty) || 0
-      const diffQty = Math.round((act - sys) * 10) / 10
-      const diffPct = sys > 0 ? Math.round(((act - sys) / sys) * 1000) / 10 : 0
-      const isOverThreshold = Math.abs(diffPct) > 5.0
+    const base = bomRows
+      .filter((bom) => !removedKeys.has(bom.key))
+      .map((bom) => {
+        const edit = userEdits[bom.key] || {}
+        const material_id = edit.material_id !== undefined ? edit.material_id : (bom.material_id ? String(bom.material_id) : '')
+        const actual_qty = edit.actual_qty !== undefined ? edit.actual_qty : bom.system_qty
+        const reason = edit.reason !== undefined ? edit.reason : ''
+        const sys = Number(bom.system_qty) || 0
+        const act = Number(actual_qty) || 0
+        const diffQty = Math.round((act - sys) * 10) / 10
+        const diffPct = sys > 0 ? Math.round(((act - sys) / sys) * 1000) / 10 : 0
+        const isOverThreshold = Math.abs(diffPct) > 5.0
 
-      return {
-        ...bom,
-        material_id,
-        actual_qty,
-        reason,
-        diffQty,
-        diffPct,
-        isOverThreshold,
-        snapshot: {
-          system_qty: sys,
-          actual_qty: act,
-          diff_pct: diffPct,
-          scrap_pct: bom.scrap_pct,
-        },
-      }
-    })
+        return {
+          ...bom,
+          material_id,
+          actual_qty,
+          reason,
+          diffQty,
+          diffPct,
+          isOverThreshold,
+          snapshot: {
+            system_qty: sys,
+            actual_qty: act,
+            diff_pct: diffPct,
+            scrap_pct: bom.scrap_pct,
+          },
+        }
+      })
 
     const extras = extraUsage.map((u) => {
       const edit = userEdits[u.key] || {}
@@ -97,6 +105,7 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
       const actual_qty = edit.actual_qty !== undefined ? edit.actual_qty : (u.actual_qty || '')
       const reason = edit.reason !== undefined ? edit.reason : (u.reason || '')
       const act = Number(actual_qty) || 0
+      const mat = materials.find((m) => String(m.id) === String(material_id))
 
       return {
         key: u.key,
@@ -104,10 +113,10 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
         layer_name: 'Additional Material (Extra)',
         material_id,
         suggested_mat_id: null,
-        material_name: 'Manual Addition',
+        material_name: mat?.name || 'Manual Addition',
         system_qty: 0,
         actual_qty,
-        uom: 'KG',
+        uom: mat?.uom || 'KG',
         diffQty: act,
         diffPct: 100,
         isOverThreshold: act > 0 && !reason,
@@ -116,7 +125,7 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
     })
 
     return [...base, ...extras]
-  }, [bomRows, userEdits, extraUsage])
+  }, [bomRows, removedKeys, userEdits, extraUsage, materials])
 
   const handleActualChange = (key, val) => {
     setUserEdits((prev) => ({
@@ -151,6 +160,41 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
 
   const hasMissingReason = consumptionTable.some((c) => c.isOverThreshold && !String(c.reason || '').trim())
 
+  // ── Wastage / scrap: one line per scrap type the BOM expects, plus any added by hand ──
+  const scrapMats = materials.filter((m) => m.category === 'SCRAP')
+  const scrapOptions = scrapMats.map((m) => ({ value: String(m.id), label: m.name, badge: m.code }))
+  const scrapMatId = (type) => String(scrapMats.find((m) => m.code === SCRAP_TYPES[type]?.material)?.id || '')
+  const scrapTable = [
+    ...(bomRows.scrap || []).map((s) => {
+      const e = scrapEdits[s.scrap_type] || {}
+      return {
+        key: s.scrap_type, scrap_type: s.scrap_type, label: s.label, expected_kg: s.expected_kg,
+        material_id: e.material_id ?? scrapMatId(s.scrap_type),
+        // Weighed on the floor, so blank until entered. Rejected panels can't easily go on a scale: suggest their weight.
+        actual_kg: e.actual_kg ?? (s.scrap_type === 'PANEL_REJECT' ? String(s.expected_kg) : ''),
+        note: e.note ?? '',
+      }
+    }),
+    ...otherScrap.map((o) => ({ ...o, scrap_type: 'OTHER', label: SCRAP_TYPES.OTHER.label, expected_kg: 0 })),
+  ]
+  const setScrap = (row, field, val) => {
+    if (row.scrap_type === 'OTHER') setOtherScrap((prev) => prev.map((o) => (o.key === row.key ? { ...o, [field]: val } : o)))
+    else setScrapEdits((prev) => ({ ...prev, [row.key]: { ...prev[row.key], [field]: val } }))
+  }
+  const scrapTotal = scrapTable.reduce((n, s) => n + (Number(s.actual_kg) || 0), 0)
+  const scrapExpected = scrapTable.reduce((n, s) => n + s.expected_kg, 0)
+
+  // A row of rejected pieces of another size, under the product of row `src`.
+  const addOtherSize = (src) => {
+    const f = itemsList.find((x) => String(x.id) === String(src.item))
+    const key = ++next.current
+    setRows((rs) => {
+      const i = rs.findIndex((x) => x.key === src.key)
+      const r = { ...blankRow, key, item: src.item, plan_item: src.plan_item, label: src.label || f?.code, otherSize: true, reject_width: f?.width ? String(f.width) : '' }
+      return [...rs.slice(0, i + 1), r, ...rs.slice(i + 1)]
+    })
+  }
+
   return (
     <>
       <ActionForm action={createProduction} submit={{ label: 'Save production', icon: 'ph-check', disabled: hasMissingReason }}>
@@ -166,7 +210,7 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
               Pieces produced
               <span className="badge b-none">{rows.length}</span>
             </h2>
-            <span className="muted text-sm">Good pieces wait for FG QC · rejected pieces need a reason</span>
+            <span className="muted text-sm">Good pieces wait for FG QC · rejected pieces need a reason · <i className="ph ph-scissors" aria-hidden="true" /> adds rejects cut to another size</span>
           </div>
 
           <div className="tbl-wrap">
@@ -178,7 +222,7 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
                   <th style={{ width: 110 }}>Good pcs</th>
                   <th style={{ width: 110 }}>Rejected pcs</th>
                   <th>Reject reason</th>
-                  <th style={{ width: 36 }}><span className="sr-only">Remove</span></th>
+                  <th style={{ width: 64 }}><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -187,7 +231,43 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
                     <td data-label="Item">
                       <input type="hidden" name="row" value={r.key} />
                       <input type="hidden" name={`plan_item_${r.key}`} value={r.plan_item} />
-                      {r.plan_item ? (
+                      {r.otherSize ? (
+                        <>
+                          <input type="hidden" name={`item_${r.key}`} value={r.item} />
+                          <input type="hidden" name={`other_size_${r.key}`} value="1" />
+                          <span className="mat-name">{r.label}</span>
+                          <span className="mat-sub">Rejected, cut to another size (mm)</span>
+                          <div className="d-flex ai-c gap-6 mt-4">
+                            <input
+                              name={`reject_width_${r.key}`}
+                              type="number"
+                              inputMode="numeric"
+                              min={1}
+                              step={1}
+                              placeholder="Width"
+                              aria-label="Width of the rejected pieces (mm)"
+                              value={r.reject_width}
+                              onChange={(e) => updateRow(r.key, 'reject_width', e.target.value)}
+                              style={{ width: 96, textAlign: 'right' }}
+                              required
+                            />
+                            <span className="muted">×</span>
+                            <input
+                              name={`reject_length_${r.key}`}
+                              type="number"
+                              inputMode="numeric"
+                              min={1}
+                              step={1}
+                              placeholder="Length"
+                              aria-label="Length of the rejected pieces (mm)"
+                              value={r.reject_length}
+                              onChange={(e) => updateRow(r.key, 'reject_length', e.target.value)}
+                              style={{ width: 96, textAlign: 'right' }}
+                              required
+                            />
+                          </div>
+                        </>
+                      ) : r.plan_item ? (
                         <>
                           <input type="hidden" name={`item_${r.key}`} value={r.item} />
                           <span className="mat-name">{r.label}</span>
@@ -218,9 +298,9 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
                         </div>
                       )}
                     </td>
-                    <td className="num" data-label="Planned left">{r.planned ?? '—'}</td>
+                    <td className="num" data-label="Planned left">{r.otherSize ? '—' : r.planned ?? '—'}</td>
                     <td data-label="Good pcs">
-                      <input
+                      {r.otherSize ? <span className="muted">0</span> : <input
                         name={`good_${r.key}`}
                         type="number"
                         inputMode="numeric"
@@ -231,7 +311,7 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
                         value={r.good}
                         onChange={(e) => updateRow(r.key, 'good', e.target.value)}
                         style={{ textAlign: 'right' }}
-                      />
+                      />}
                     </td>
                     <td data-label="Rejected pcs">
                       <input
@@ -256,11 +336,24 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
                         onChange={(e) => updateRow(r.key, 'reason', e.target.value)}
                       />
                     </td>
-                    <td data-label="">
+                    <td data-label="" className="nowrap">
+                      {!r.otherSize && r.item && (
+                        <button
+                          type="button"
+                          className="btn-link"
+                          title="Add rejected pieces of this product cut to another size"
+                          aria-label="Add rejected pieces of another size"
+                          onClick={() => addOtherSize(r)}
+                          style={{ marginRight: 4 }}
+                        >
+                          <i className="ph ph-scissors" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="btn-link danger"
                         disabled={rows.length === 1}
+                        title={rows.length === 1 ? 'At least one row is needed' : 'Remove this row'}
                         aria-label="Remove row"
                         onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
                       >
@@ -335,7 +428,9 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
                   <tr>
                     <td colSpan={6} style={{ textAlign: 'center', padding: '24px 16px' }} className="muted">
                       <i className="ph ph-calculator" style={{ fontSize: '1.25rem', marginBottom: 4, display: 'block' }} />
-                      Enter good or rejected pieces above to calculate raw material consumption.
+                      {removedKeys.size > 0
+                        ? 'All BOM raw materials were removed for this production. Press Restore removed BOM or Add extra material below.'
+                        : 'Enter good or rejected pieces above to calculate raw material consumption.'}
                     </td>
                   </tr>
                 ) : (
@@ -438,23 +533,26 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
                         </td>
 
                         <td className="va-m" data-label="">
-                          {c.isExtra && (
-                            <button
-                              type="button"
-                              className="btn-link danger"
-                              aria-label="Remove extra material"
-                              onClick={() => {
+                          <button
+                            type="button"
+                            className="btn-link danger"
+                            title={c.isExtra ? 'Remove extra material' : 'Remove material for this production only'}
+                            aria-label={c.isExtra ? 'Remove extra material' : `Remove ${c.layer_name}`}
+                            onClick={() => {
+                              if (c.isExtra) {
                                 setExtraUsage((prev) => prev.filter((x) => x.key !== k))
-                                setUserEdits((prev) => {
-                                  const n = { ...prev }
-                                  delete n[k]
-                                  return n
-                                })
-                              }}
-                            >
-                              <i className="ph ph-trash" />
-                            </button>
-                          )}
+                              } else {
+                                setRemovedKeys((prev) => new Set(prev).add(k))
+                              }
+                              setUserEdits((prev) => {
+                                const n = { ...prev }
+                                delete n[k]
+                                return n
+                              })
+                            }}
+                          >
+                            <i className="ph ph-trash" />
+                          </button>
                         </td>
                       </tr>
                     )
@@ -463,13 +561,10 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
               </tbody>
             </table>
           </div>
-          {bomRows.waste?.length > 0 && (
-            <p className="muted text-sm" style={{ margin: '8px 16px 0' }}>
-              Expected waste (standard BOM): {bomRows.waste.map((w) => `${w.layer_name} ${Math.abs(w.qty).toLocaleString()} ${w.uom.toLowerCase()}`).join(' · ')}
-            </p>
-          )}
-
           <div className="tbl-actions-bar" style={{ padding: '8px 16px' }}>
+            {[...removedKeys].map((rk) => (
+              <input key={rk} type="hidden" name="removed_consumption_row" value={rk} />
+            ))}
             <div className="tbl-actions-left">
               <button
                 type="button"
@@ -480,6 +575,130 @@ export default function DprForm({ fg, materials = [], planRows, options = {}, co
                 }}
               >
                 <i className="ph ph-plus" /> Add extra material (chemicals, tape, packaging)
+              </button>
+              {removedKeys.size > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setRemovedKeys(new Set())}
+                >
+                  <i className="ph ph-arrow-counter-clockwise" /> Restore removed BOM ({removedKeys.size})
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Wastage / scrap generated: output weighed off the line, into the Scrap Yard (not extra RM use) */}
+        <div className="card mb-16">
+          <div className="tbl-top" style={{ minHeight: 46, padding: '10px 16px' }}>
+            <div>
+              <h2 className="tbl-ttl" style={{ fontSize: '0.875rem' }}>
+                <i className="ph ph-recycle" />
+                Wastage / Scrap Generated
+                {scrapTotal > 0 && <span className="badge b-none">{scrapTotal.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg</span>}
+              </h2>
+              <span className="muted text-sm">
+                Weigh the scrap that came off the line this shift. It goes into the plant&apos;s Scrap store; lines left empty are not saved.
+              </span>
+            </div>
+          </div>
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th style={{ width: '22%' }}>Scrap type</th>
+                  <th style={{ width: '30%' }}>Scrap material</th>
+                  <th className="r" style={{ width: 110 }}>Expected (BOM)</th>
+                  <th style={{ width: 130 }}>Actual weighed</th>
+                  <th>Note</th>
+                  <th style={{ width: 36 }}><span className="sr-only">Remove</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {scrapTable.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="muted" style={{ textAlign: 'center', padding: '20px 16px' }}>
+                      Enter pieces above to see the scrap the BOM expects, or add a scrap line below.
+                    </td>
+                  </tr>
+                ) : scrapTable.map((s) => (
+                  <tr key={s.key}>
+                    <td data-label="Scrap type">
+                      <input type="hidden" name="w_row" value={s.key} />
+                      <input type="hidden" name={`w_type_${s.key}`} value={s.scrap_type} />
+                      <span className="fw6">{s.label}</span>
+                    </td>
+                    <td data-label="Scrap material">
+                      <Combobox
+                        name={`w_material_${s.key}`}
+                        value={s.material_id}
+                        options={scrapOptions}
+                        placeholder={scrapOptions.length ? 'Choose scrap material…' : 'Run migrate-022.sql first'}
+                        wide
+                        onChange={(v) => setScrap(s, 'material_id', v)}
+                      />
+                    </td>
+                    <td className="num va-m" data-label="Expected (BOM)">
+                      {s.expected_kg > 0 ? <><span className="fw6">{s.expected_kg.toLocaleString()}</span> <span className="muted text-xs">KG</span></> : <span className="muted">—</span>}
+                    </td>
+                    <td className="va-m" data-label="Actual weighed">
+                      <div className="d-flex ai-c gap-4">
+                        <input
+                          name={`w_actual_${s.key}`}
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          step="any"
+                          placeholder="Weigh"
+                          aria-label={`Actual ${s.label} weighed (kg)`}
+                          value={s.actual_kg}
+                          onChange={(e) => setScrap(s, 'actual_kg', e.target.value)}
+                          style={{ textAlign: 'right', fontWeight: 600 }}
+                        />
+                        <span className="muted text-xs" style={{ width: 24 }}>KG</span>
+                      </div>
+                    </td>
+                    <td className="va-m" data-label="Note">
+                      <input
+                        name={`w_note_${s.key}`}
+                        value={s.note}
+                        placeholder="Optional notes…"
+                        aria-label={`Note for ${s.label}`}
+                        onChange={(e) => setScrap(s, 'note', e.target.value)}
+                      />
+                    </td>
+                    <td className="va-m" data-label="">
+                      {s.scrap_type === 'OTHER' && (
+                        <button type="button" className="btn-link danger" title="Remove scrap line" aria-label="Remove scrap line"
+                          onClick={() => setOtherScrap((prev) => prev.filter((o) => o.key !== s.key))}>
+                          <i className="ph ph-trash" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              {scrapTable.length > 0 && (
+                <tfoot>
+                  <tr>
+                    <th colSpan={2} className="fw7">Total</th>
+                    <th className="num fw7">{scrapExpected ? `${scrapExpected.toLocaleString(undefined, { maximumFractionDigits: 1 })} KG` : '—'}</th>
+                    <th className="num fw7">{scrapTotal ? `${scrapTotal.toLocaleString(undefined, { maximumFractionDigits: 1 })} KG` : '—'}</th>
+                    <th colSpan={2}></th>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+          <div className="tbl-actions-bar" style={{ padding: '8px 16px' }}>
+            <div className="tbl-actions-left">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setOtherScrap((prev) => [...prev, { key: `other-${++next.current}`, material_id: '', actual_kg: '', note: '' }])}
+              >
+                <i className="ph ph-plus" /> Add scrap line
               </button>
             </div>
           </div>

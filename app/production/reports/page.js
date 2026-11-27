@@ -6,6 +6,7 @@ import { day, money, qty, today } from '@/lib/tas'
 import { DateRange, IntentLink, LinkBusy } from '../../ui'
 import ProdTabs from '../ProdTabs'
 import DailyConsumptionTable from './DailyConsumptionTable'
+import { SCRAP_TYPES } from '@/lib/bom'
 
 export const metadata = { title: 'Production Reports & Variance' }
 const isDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '')
@@ -17,7 +18,7 @@ export default async function Reports({ searchParams }) {
   const to = isDay(sp.to) ? sp.to : today()
   const from = isDay(sp.from) && sp.from <= to ? sp.from : `${to.slice(0, 8)}01`
 
-  const [, missing, { stores, materials }, items, moves, { data: wipNow }, varianceRes] = await Promise.all([
+  const [, missing, { stores, materials }, items, moves, { data: wipNow }, varianceRes, scrapRes] = await Promise.all([
     requireRole('manager'),
     prodMissing(),
     invMasters(),
@@ -43,6 +44,13 @@ export default async function Reports({ searchParams }) {
       .gte('p.prod_date', from)
       .lte('p.prod_date', to)
       .order('id', { ascending: false })
+      .then((r) => r, () => ({ data: [] })),
+    // Scrap weighed on DPRs (migrate-022; empty until it runs).
+    db()
+      .from('production_wastage')
+      .select('scrap_type, expected_kg, actual_kg, p:productions!inner(id, prod_date, shift, dpr_no, line:stores(id, name, plant_code))')
+      .gte('p.prod_date', from)
+      .lte('p.prod_date', to)
       .then((r) => r, () => ({ data: [] })),
   ])
 
@@ -90,6 +98,28 @@ export default async function Reports({ searchParams }) {
     return sum + (diff * cost)
   }, 0)
   const overThresholdCount = varianceList.filter((v) => Math.abs(Number(v.diff_pct || 0)) > 5.0).length
+
+  // 3b. Wastage / scrap per DPR, beside the RM it used: input (BOM vs actual = extra use) and output (scrap) apart.
+  // KG only: film in M2 is neither weighed as scrap nor added to the kg used.
+  const scrapList = scrapRes?.data || []
+  const perDpr = {}
+  const dprRow = (p) => (perDpr[p.id] ??= { id: p.id, date: p.prod_date, dpr: p.dpr_no, shift: p.shift, line: p.line, usedKg: 0, extraKg: 0, expKg: 0, scrapKg: 0, byType: {} })
+  for (const v of varianceList) {
+    if (v.uom !== 'KG' || !v.p) continue
+    const r = dprRow(v.p)
+    r.usedKg += Number(v.actual_qty || 0)
+    r.extraKg += Number(v.actual_qty || 0) - Number(v.system_qty || 0)
+  }
+  for (const w of scrapList) {
+    const r = dprRow(w.p)
+    r.expKg += Number(w.expected_kg || 0)
+    r.scrapKg += Number(w.actual_kg || 0)
+    r.byType[w.scrap_type] = (r.byType[w.scrap_type] || 0) + Number(w.actual_kg || 0)
+  }
+  const scrapRows = Object.values(perDpr).sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)
+  const st = scrapRows.reduce((t, r) => ({ used: t.used + r.usedKg, extra: t.extra + r.extraKg, exp: t.exp + r.expKg, scrap: t.scrap + r.scrapKg }), { used: 0, extra: 0, exp: 0, scrap: 0 })
+  const scrapTypesUsed = Object.keys(SCRAP_TYPES).filter((t) => scrapRows.some((r) => r.byType[t]))
+  const kg = (n) => qty(Math.round(n * 10) / 10)
 
   // 4. Day-wise consumption aggregation
   const dailyMap = {}
@@ -241,6 +271,12 @@ export default async function Reports({ searchParams }) {
               <i className="ph ph-scales" />
               <span>Consumption Variance (BOM vs Actual)</span>
               {overThresholdCount > 0 && <span className="badge b-danger">{overThresholdCount} &gt;5%</span>}
+            </IntentLink>
+
+            <IntentLink href={baseHref({ tab: 'scrap' })} className={`tab${subview === 'scrap' ? ' on' : ''}`}>
+              <LinkBusy />
+              <i className="ph ph-recycle" />
+              <span>Wastage &amp; Scrap</span>
             </IntentLink>
           </nav>
 
@@ -470,6 +506,55 @@ export default async function Reports({ searchParams }) {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </>
+      )}
+      {/* ── VIEW 4: Wastage & scrap: RM used, extra use and scrap out, kept apart ── */}
+      {subview === 'scrap' && (
+        <>
+          <div className="stats">
+            <div className="stat"><div className="stat-n">{kg(st.used)}</div><div className="stat-l">RM used (KG)</div></div>
+            <div className="stat">
+              <div className={`stat-n ${st.extra > 0 ? 'co' : ''}`}>{st.extra > 0 ? '+' : ''}{kg(st.extra)}</div>
+              <div className="stat-l">Extra RM use (actual − BOM, KG)</div>
+            </div>
+            <div className="stat"><div className="stat-n">{kg(st.scrap)}</div><div className="stat-l">Scrap out (KG) · BOM {kg(st.exp)}</div></div>
+            <div className="stat"><div className="stat-n">{st.used > 0 ? pct(st.used - st.scrap, st.used) : '—'}</div><div className="stat-l">Material yield (RM used − scrap) ÷ RM used</div></div>
+          </div>
+
+          <div className="card">
+            <div className="tbl-top">
+              <h2 className="tbl-ttl"><i className="ph ph-recycle" />Wastage &amp; scrap per DPR {day(from)} – {day(to)}</h2>
+              <a href={`/production/reports/export?kind=scrap&from=${from}&to=${to}`} className="btn btn-ghost btn-sm"><i className="ph ph-download-simple" />Export</a>
+            </div>
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Date</th><th>DPR</th><th>Line</th>
+                    <th className="r">RM used</th><th className="r">Extra use</th>
+                    {scrapTypesUsed.map((t) => <th key={t} className="r">{SCRAP_TYPES[t].label}</th>)}
+                    <th className="r">Scrap out</th><th className="r">BOM scrap</th><th className="r">Scrap % of RM</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scrapRows.map((r) => (
+                    <tr key={r.id}>
+                      <td className="nowrap">{day(r.date)}</td>
+                      <td data-label="DPR"><Link prefetch={false} className="qno" href={`/production/dpr?view=${r.id}`}>{r.dpr}</Link></td>
+                      <td data-label="Line">{storeLabel(r.line)}</td>
+                      <td className="num" data-label="RM used">{kg(r.usedKg)}</td>
+                      <td className={`num${r.extraKg > 0.05 ? ' red fw6' : ''}`} data-label="Extra use">{r.extraKg > 0 ? '+' : ''}{kg(r.extraKg)}</td>
+                      {scrapTypesUsed.map((t) => <td key={t} className="num" data-label={SCRAP_TYPES[t].label}>{r.byType[t] ? kg(r.byType[t]) : <span className="muted">—</span>}</td>)}
+                      <td className="num fw6" data-label="Scrap out">{r.scrapKg ? kg(r.scrapKg) : <span className="muted">not weighed</span>}</td>
+                      <td className="num" data-label="BOM scrap">{r.expKg ? kg(r.expKg) : <span className="muted">—</span>}</td>
+                      <td className="num" data-label="Scrap % of RM">{pct(r.scrapKg, r.usedKg)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!scrapRows.length && <div className="empty"><i className="ph ph-recycle" /><h3>No production in this period</h3><p>Scrap shows here once it is weighed on a DPR.</p></div>}
             </div>
           </div>
         </>

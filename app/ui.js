@@ -1053,7 +1053,7 @@ export function RoleSelect({ id, name = 'role', value, defaultValue, required = 
 export function CustName({ name, className = '' }) {
   const { en, ar } = splitName(name)
   return (
-    <span className={`cn ${className}`}>
+    <span className={`cn ${className}`} title={String(name || '')}>
       <bdi className="cn-en">{en}</bdi>
       {ar && <span className="cn-ar" dir="rtl" lang="ar">{ar}</span>}
     </span>

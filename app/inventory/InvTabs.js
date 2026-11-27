@@ -10,7 +10,7 @@ export default function InvTabs({ tab, missing }) {
   const stockTab = STOCK_ON[tab]
   return (
     <>
-      {stockTab && <PageTabs group="stock" on={stockTab} label="Inventory" />}
+      {stockTab && <PageTabs group="stock" on={stockTab} label="RM & FG IMS" />}
       {tab !== '' && <PageHelp page={PAGE[tab]} missing={missing} migration="migrate-015.sql" />}
     </>
   )

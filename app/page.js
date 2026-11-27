@@ -140,7 +140,7 @@ export default async function Dashboard() {
                   href="/inventory/po"
                   icon="ph-shopping-cart"
                   n={inv.po}
-                  label="Purchasing"
+                  label="RM Purchase"
                   sub={`${inv.po} waiting`}
                 />
                 <Tile

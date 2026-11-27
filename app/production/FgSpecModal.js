@@ -60,11 +60,11 @@ export default function FgSpecModal({ open, onClose, onSelect, options = {} }) {
       return
     }
     if (!width || !(Number(width) > 0)) {
-      setError('Please select a Width.')
+      setError('Enter the width in mm.')
       return
     }
     if (!length || !(Number(length) > 0)) {
-      setError('Please select a Length.')
+      setError('Enter the length in mm.')
       return
     }
     if (!thickness || !(Number(thickness) > 0)) {
@@ -210,31 +210,40 @@ export default function FgSpecModal({ open, onClose, onSelect, options = {} }) {
             </div>
 
             <div className="fg">
-              <label htmlFor={`${uid}-width`}>Width <span className="req">*</span></label>
-              <select
+              {/* Standard sizes to pick, or any size in mm typed in (off-cuts, make-to-stock). */}
+              <label htmlFor={`${uid}-width`}>Width (mm) <span className="req">*</span></label>
+              <input
                 id={`${uid}-width`}
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step={1}
+                list={`${uid}-widths`}
                 value={width}
                 onChange={(e) => setWidth(e.target.value)}
                 required
-              >
-                {widths.map((w) => (
-                  <option key={w} value={w}>{w}</option>
-                ))}
-              </select>
+              />
+              <datalist id={`${uid}-widths`}>
+                {widths.map((w) => <option key={w} value={w} />)}
+              </datalist>
             </div>
 
             <div className="fg">
-              <label htmlFor={`${uid}-length`}>Length <span className="req">*</span></label>
-              <select
+              <label htmlFor={`${uid}-length`}>Length (mm) <span className="req">*</span></label>
+              <input
                 id={`${uid}-length`}
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step={1}
+                list={`${uid}-lengths`}
                 value={length}
                 onChange={(e) => setLength(e.target.value)}
                 required
-              >
-                {lengths.map((l) => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
-              </select>
+              />
+              <datalist id={`${uid}-lengths`}>
+                {lengths.map((l) => <option key={l} value={l} />)}
+              </datalist>
             </div>
 
             <div className="fg">

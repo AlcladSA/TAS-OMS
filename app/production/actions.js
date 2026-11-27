@@ -1,9 +1,10 @@
 'use server'
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { db, go, logEvent, requireRole } from '@/lib/server'
 import { invError, invMasters } from '@/lib/inventory'
 import { parseCSV } from '@/lib/csv'
-import { calcDprBOM, normalizeCore, standardFor } from '@/lib/bom'
+import { SCRAP_TYPES, calcDprBOM, normalizeCore, standardFor } from '@/lib/bom'
 import { listCoreSettings } from '@/lib/bom-server'
 import { plural, qty as fmt, today } from '@/lib/tas'
 
@@ -42,10 +43,15 @@ export async function createProduction(_prev, fd) {
   if (!date || date > today()) return { error: 'Pick the production date, not in the future.' }
   if (!str(fd, 'line')) return { error: 'Pick the production line.' }
   const keys = fd.getAll('row')
-  const items = keys.map((k) => ({
-    item: Number(fd.get(`item_${k}`)) || null, plan_item: str(fd, `plan_item_${k}`), good: num(fd.get(`good_${k}`) || 0),
-    rejected: num(fd.get(`rejected_${k}`) || 0), reason: str(fd, `reason_${k}`),
-  })).filter((r) => r.item && (r.good || r.rejected))
+  // other_size_<i>: rejected pieces of the row's product cut to another size (reject_width / reject_length, mm), no good pieces.
+  const items = keys.map((k) => {
+    const other = fd.get(`other_size_${k}`) === '1'
+    return {
+      item: Number(fd.get(`item_${k}`)) || null, plan_item: str(fd, `plan_item_${k}`), good: other ? 0 : num(fd.get(`good_${k}`) || 0),
+      rejected: num(fd.get(`rejected_${k}`) || 0), reason: str(fd, `reason_${k}`),
+      ...(other && { reject_width: num(fd.get(`reject_width_${k}`)), reject_length: num(fd.get(`reject_length_${k}`)) }),
+    }
+  }).filter((r) => r.item && (r.good || r.rejected))
   for (const r of items) {
     if (!(r.good >= 0 && r.rejected >= 0) || !Number.isInteger(r.good) || !Number.isInteger(r.rejected)) return { error: 'Pieces must be whole numbers, 0 or more.' }
     if (r.rejected > 0 && !r.reason) return { error: 'Give the reason on every row with rejected pieces.' }
@@ -55,10 +61,18 @@ export async function createProduction(_prev, fd) {
   // RM consumption. The system figures are worked out again here from the pieces, the standard BOM and
   // the saved core settings, so the form can only send the actual figures, the material picked and the reasons.
   const { data: specs, error: specErr } = await db().from('fg_items')
-    .select('id, brand, grade, width, length, thickness, skin, core, color_code, color_name').in('id', items.map((r) => r.item))
+    .select('id, code, brand, grade, width, length, thickness, skin, core, color_code, color_name').in('id', items.map((r) => r.item))
   if (specErr) return err(specErr)
+  // Rejects of another size are cut from the product's own run: no wider than it, and a real size.
+  for (const r of items.filter((x) => 'reject_width' in x)) {
+    const f = specs.find((x) => x.id === r.item) || {}
+    if (!(r.reject_width > 0 && r.reject_length > 0) || r.reject_length > 10000) return { error: `Give the width and length (mm) of the rejected pieces of ${f.code}.` }
+    if (f.width && r.reject_width > Number(f.width)) return { error: `Rejected pieces of ${f.code} can't be wider than the product (${f.width} mm).` }
+  }
   const { settings } = await listCoreSettings()
-  const sys = calcDprBOM(items.map((r) => ({ fg_item: specs.find((f) => f.id === r.item) || {}, good_qty: r.good, rejected_qty: r.rejected })), settings, [])
+  const sys = calcDprBOM(items.map((r) => ({
+    fg_item: specs.find((f) => f.id === r.item) || {}, good_qty: r.good, rejected_qty: r.rejected, reject_width: r.reject_width, reject_length: r.reject_length,
+  })), settings, [])
   if (sys.missingCores.length) return { error: `No BOM settings for core type ${sys.missingCores.join(', ')}. Add it on the BOM page first.` }
   // The settings each row was worked out with, so later edits to a density or scrap % don't rewrite history.
   // Products in the standard BOM don't use the core settings; they are listed under STANDARD instead.
@@ -69,8 +83,9 @@ export async function createProduction(_prev, fd) {
   if (std.length) snapshot.STANDARD = { source: 'All_Finished_Goods_BOM.xlsx (31 Oct 2026)', grades: std }
 
   const cKeys = fd.getAll('consumption_row')
+  const removed = new Set(fd.getAll('removed_consumption_row'))
   const sent = new Set(cKeys)
-  if (sys.some((r) => !sent.has(r.key))) return { error: 'The material list is out of date. Change any piece count to refresh it, then save again.' }
+  if (sys.some((r) => !sent.has(r.key) && !removed.has(r.key))) return { error: 'The material list is out of date. Change any piece count to refresh it, then save again.' }
   const consumption = []
   for (const k of cKeys) {
     const s0 = sys.find((r) => r.key === k) // undefined = an extra material added by hand
@@ -101,20 +116,45 @@ export async function createProduction(_prev, fd) {
     return { error: 'RM used must be above 0 on every material line (remove empty lines).' }
   }
 
+  // Scrap weighed off the line (KG), kept apart from extra RM use. Expected figures come from the BOM worked out
+  // here, not from the form. Lines without a weight are skipped.
+  const wastage = []
+  for (const k of fd.getAll('w_row')) {
+    const raw = str(fd, `w_actual_${k}`)
+    if (!raw) continue
+    const type = SCRAP_TYPES[str(fd, `w_type_${k}`)] ? str(fd, `w_type_${k}`) : 'OTHER'
+    const label = SCRAP_TYPES[type].label
+    const actual = num(raw)
+    if (!(actual > 0)) return { error: `${label}: the weight must be above 0 kg, or leave it empty.` }
+    const material = Number(fd.get(`w_material_${k}`)) || null
+    if (!material) return { error: `${label}: pick the scrap material.` }
+    wastage.push({
+      scrap_type: type, material_id: material, actual_kg: actual, note: str(fd, `w_note_${k}`),
+      expected_kg: sys.scrap.find((s) => s.scrap_type === type)?.expected_kg || 0,
+    })
+  }
+
   // Any shortfall on the line is issued from the plant's RM store inside create_production (migrate-020),
-  // in the same transaction: if the entry fails, the issue is undone too.
+  // in the same transaction: if the entry fails, the issue is undone too. Scrap and reject sizes need migrate-022;
+  // without them the 4-argument call is kept, so entries still save on a database that hasn't run it yet.
+  const needs022 = wastage.length > 0 || items.some((r) => 'reject_width' in r)
   const { data: no, error } = await db().rpc('create_production', {
     p_head: { date, shift: str(fd, 'shift'), line: str(fd, 'line'), plan: str(fd, 'plan'), operator: str(fd, 'operator'), notes: str(fd, 'notes'), by: me.full_name },
     p_items: items,
     p_usage: usage,
     p_consumption: consumption,
+    ...(needs022 && { p_wastage: wastage }),
   })
+  if (error && needs022 && /Could not find the function|does not exist/.test(error.message)) {
+    return { error: 'Run migrate-022.sql in Supabase first: scrap and rejects of another size need it.' }
+  }
   if (error) return err(error)
   const { data: p } = await db().from('productions').select('id').eq('dpr_no', no).single()
   const { data: autoIss } = await db().from('transfers').select('doc_no').eq('notes', `Auto-issued for DPR ${no}`).maybeSingle()
   if (autoIss) await logEvent(null, me, 'Material auto-issued', `${autoIss.doc_no} · issued to the line for ${no}`)
   const good = items.reduce((n, r) => n + r.good, 0)
-  await logEvent(null, me, 'Production entered', `${no} · ${fmt(good)} good, ${fmt(items.reduce((n, r) => n + r.rejected, 0))} rejected pcs`)
+  const scrapKg = wastage.reduce((n, w) => n + w.actual_kg, 0)
+  await logEvent(null, me, 'Production entered', `${no} · ${fmt(good)} good, ${fmt(items.reduce((n, r) => n + r.rejected, 0))} rejected pcs${scrapKg ? ` · ${fmt(scrapKg)} kg scrap to the Scrap store` : ''}`)
   done(`/production/dpr/${p.id}`, `${no} saved. The good pieces now wait for FG QC.`)
 }
 
@@ -237,7 +277,7 @@ export async function getOrCreateFgItem(input) {
 // Auto-issue a plan's raw material from the plant's RM store to its line. The BOM (calcDprBOM)
 // gives the quantities; auto_issue_plan (migrate-020) moves only the shortfall, in one transaction.
 // Called from a plain form, so every outcome redirects with a toast (a returned { error } would be lost).
-export async function autoIssuePlan(planId) {
+export async function autoIssuePlan(planId, fd) {
   const me = await requireRole('manager')
   const back = `/production?view=${planId}`
   const { data: plan } = await db().from('production_plans')
@@ -245,23 +285,67 @@ export async function autoIssuePlan(planId) {
     .eq('id', planId).maybeSingle()
   if (!plan) go('/production', 'error', 'Plan not found.')
 
-  const { settings } = await listCoreSettings()
-  // invMasters reads every material: a plain select stops at Supabase's 1,000 rows (there are 2,000+).
-  const { materials } = await invMasters()
-  const bom = calcDprBOM(
-    (plan.items || []).filter((i) => i.f && Number(i.qty) > 0).map((i) => ({ fg_item: i.f, good_qty: Number(i.qty) })),
-    settings, materials,
-  )
-  if (bom.missingCores?.length) go(back, 'error', `No BOM settings for core type ${bom.missingCores.join(', ')}. Add it on the BOM page first.`)
-  // Refuse rather than issue part of the plan's material without saying so.
-  const unmatched = bom.filter((r) => !r.material_id && r.system_qty > 0).map((r) => r.layer_name)
-  if (unmatched.length) go(back, 'error', `No material in Materials for: ${unmatched.join(', ')}. Add it under Materials, or issue this plan by hand.`)
-  const lines = bom.filter((r) => r.material_id && r.system_qty > 0).map((r) => ({ material: r.material_id, qty: r.system_qty }))
-  if (!lines.length) go(back, 'error', 'No raw material could be matched to this plan. Check the BOM settings and materials.')
+  let lines
+  if (fd?.get('rm_custom') === '1') {
+    const mats = fd.getAll('rm_material')
+    const qtys = fd.getAll('rm_qty')
+    if (!mats.length) go(back, 'error', 'Add at least one raw material to issue, or press Reset to BOM.')
+    lines = []
+    for (let i = 0; i < mats.length; i++) {
+      const m = Number(mats[i])
+      const q = Number(qtys[i])
+      if (!Number.isInteger(m) || m <= 0) go(back, 'error', `Row ${i + 1}: pick a raw material or remove the row.`)
+      if (!Number.isFinite(q) || q <= 0) go(back, 'error', `Row ${i + 1}: quantity must be above 0.`)
+      lines.push({ material: m, qty: q })
+    }
+  } else {
+    const { settings } = await listCoreSettings()
+    // invMasters reads every material: a plain select stops at Supabase's 1,000 rows (there are 2,000+).
+    const { materials } = await invMasters()
+    const bom = calcDprBOM(
+      (plan.items || []).filter((i) => i.f && Number(i.qty) > 0).map((i) => ({ fg_item: i.f, good_qty: Number(i.qty) })),
+      settings, materials,
+    )
+    if (bom.missingCores?.length) go(back, 'error', `No BOM settings for core type ${bom.missingCores.join(', ')}. Add it on the BOM page first.`)
+    // Refuse rather than issue part of the plan's material without saying so.
+    const unmatched = bom.filter((r) => !r.material_id && r.system_qty > 0).map((r) => r.layer_name)
+    if (unmatched.length) go(back, 'error', `No material in Materials for: ${unmatched.join(', ')}. Add it under Materials, or issue this plan by hand.`)
+    lines = bom.filter((r) => r.material_id && r.system_qty > 0).map((r) => ({ material: r.material_id, qty: r.system_qty }))
+    if (!lines.length) go(back, 'error', 'No raw material could be matched to this plan. Check the BOM settings and materials.')
+  }
 
   const { data: no, error } = await db().rpc('auto_issue_plan', { p_plan_id: plan.id, p_lines: lines, p_by: me.full_name })
   if (error) go(back, 'error', `Auto-issue failed: ${invError(error)}`)
   if (no === 'ALREADY_STOCKED') go(back, 'ok', 'The line already has the raw material for this plan.')
   await logEvent(null, me, 'Material auto-issued', `${no} · auto-issued to ${plan.line?.name} for ${plan.plan_no}`)
   go(back, 'ok', `${no}: raw material issued to ${plan.line?.name}.`)
+}
+
+export async function deletePlan(fd) {
+  const me = await requireRole('manager')
+  const id = str(fd, 'id')
+  const rawBack = str(fd, 'back')
+  const back = rawBack.startsWith('/production') ? rawBack : '/production'
+  const { data: plan, error: findErr } = await db().from('production_plans')
+    .select('id, plan_no, items:plan_items(id)')
+    .eq('id', id).maybeSingle()
+  if (findErr) go(back, 'error', err(findErr).error)
+  if (!plan) go(back, 'error', 'Plan not found.')
+
+  const itemIds = (plan.items || []).map((i) => i.id)
+  if (itemIds.length) {
+    const { error: e1 } = await db().from('production_items').update({ plan_item_id: null }).in('plan_item_id', itemIds)
+    if (e1) go(back, 'error', err(e1).error)
+  }
+  const { error: e2 } = await db().from('productions').update({ plan_id: null }).eq('plan_id', plan.id)
+  if (e2) go(back, 'error', err(e2).error)
+  const { error: e3 } = await db().from('transfers').update({ plan_id: null }).eq('plan_id', plan.id)
+  if (e3) go(back, 'error', err(e3).error)
+
+  const { error: delErr } = await db().from('production_plans').delete().eq('id', plan.id)
+  if (delErr) go(back, 'error', err(delErr).error)
+
+  await logEvent(null, me, 'Production plan deleted', plan.plan_no)
+  revalidatePath('/', 'layout')
+  go(back, 'ok', `${plan.plan_no} deleted.`)
 }

@@ -10,6 +10,7 @@ import PlanDialog from './PlanDialog'
 import { listCoreSettings } from '@/lib/bom-server'
 import OrderNeedDialog from './OrderNeedDialog'
 import NewPlanDialog from './NewPlanDialog'
+import DeletePlanModal from './DeletePlanModal'
 
 export async function generateMetadata({ searchParams }) {
   const sp = await searchParams
@@ -34,14 +35,14 @@ export default async function Planning({ searchParams }) {
   const viewId = /^\d+$/.test(sp.view || '') ? sp.view : null
 
   let q = db().from('production_plans')
-    .select('*, line:stores(name, plant_code), items:plan_items(qty, produced_qty)')
+    .select('*, line:stores(name, plant_code), items:plan_items(qty, produced_qty), issues:transfers(id, doc_no), dprs:productions(id, dpr_no)')
     .order('plan_date', { ascending: false }).order('id', { ascending: false }).limit(LIMIT)
   if (showPlans === 'open') q = q.eq('status', 'OPEN')
   if (term) q = q.ilike('plan_no', `%${term}%`)
 
   const planQuery = viewId
     ? db().from('production_plans')
-        .select('*, line:stores(id, name, plant_code), items:plan_items(*, f:fg_items(code, brand, color_code, color_name, core, skin, width, length, thickness, grade, m2_per_pc)), issues:transfers(id, doc_no, doc_date), dprs:productions(id, dpr_no, prod_date)')
+        .select('*, line:stores(id, name, plant_code), items:plan_items(*, f:fg_items(code, brand, color_code, color_name, core, skin, width, length, thickness, grade, m2_per_pc)), issues:transfers(id, doc_no, doc_date, items:transfer_items(material_id, qty, m:materials(id, code, name, uom))), dprs:productions(id, dpr_no, prod_date)')
         .eq('id', viewId).maybeSingle()
     : Promise.resolve({ data: null })
 
@@ -171,7 +172,7 @@ export default async function Planning({ searchParams }) {
                 <th className="r">Planned pcs</th>
                 <th className="r">Produced</th>
                 <th>Status</th>
-                <th className="r" style={{ width: 130 }}>Actions</th>
+                <th className="r">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -219,6 +220,7 @@ export default async function Planning({ searchParams }) {
                         >
                           <i className="ph ph-factory" /> Enter DPR
                         </Link>
+                        <DeletePlanModal plan={p} back={listHref} />
                       </div>
                     </td>
                   </ClickRow>

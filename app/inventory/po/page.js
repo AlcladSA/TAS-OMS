@@ -25,7 +25,7 @@ export async function generateMetadata({ searchParams }) {
     const { data } = await db().from('purchase_orders').select('po_no').eq('id', sp.view).maybeSingle()
     if (data?.po_no) return { title: { absolute: data.po_no } }
   }
-  return { title: sp.tab === 'grn' ? 'Goods Received (GRN)' : 'Purchasing' }
+  return { title: sp.tab === 'grn' ? 'Goods Received (GRN)' : 'RM Purchase' }
 }
 
 const LIMIT = 200

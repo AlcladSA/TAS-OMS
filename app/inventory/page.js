@@ -7,7 +7,7 @@ import { importOpening, postAdjustment } from './actions'
 import LinesForm from './LinesForm'
 import InvTabs from './InvTabs'
 
-export const metadata = { title: 'Inventory' }
+export const metadata = { title: 'RM & FG IMS' }
 
 // Stock per store and material for a period: opening, in, out, closing. Red = below the material's min level.
 export default async function Stock({ searchParams }) {

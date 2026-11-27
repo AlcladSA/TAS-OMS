@@ -47,9 +47,15 @@ export default async function Dprs({ searchParams }) {
   ])
 
   let used = null
+  let wastage = []
   if (viewDpr?.dpr_no) {
-    const { data } = await db().from('stock_moves').select('qty, m:materials(code, name, uom)').eq('ref_type', 'USE').eq('ref_no', viewDpr.dpr_no)
+    // Scrap is read on its own: before migrate-022 the table doesn't exist and the DPR still opens.
+    const [{ data }, { data: w }] = await Promise.all([
+      db().from('stock_moves').select('qty, m:materials(code, name, uom)').eq('ref_type', 'USE').eq('ref_no', viewDpr.dpr_no),
+      db().from('production_wastage').select('*, m:materials(code, name)').eq('production_id', viewDpr.id).order('id'),
+    ])
     used = data
+    wastage = w || []
   }
 
   const sum = (p, k) => p.items.reduce((n, i) => n + Number(i[k]), 0)
@@ -98,6 +104,7 @@ export default async function Dprs({ searchParams }) {
         <DprDialog
           dpr={viewDpr}
           used={used}
+          wastage={wastage}
           s={s}
           closeHref={listHref}
         />

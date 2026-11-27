@@ -78,8 +78,8 @@ export default function PlantClient({ rows, isOpen, here, tab = 'open', counts =
                 <th className="c-desc">Material</th>
                 <th className="r c-bal">Balance</th>
                 <th className="r c-ready">Ready</th>
-                <th className="r c-stock" title="Finished goods inventory in plant FG store (free / total)">Plant stock</th>
-                <th className="c-plant">Production</th>
+                <th className="r c-stock" title="Finished goods inventory in plant FG store (free / total)">Stock</th>
+                <th className="c-plant">Status</th>
                 <th className="c-st">Dispatch</th>
                 <th className="r c-act">Action</th>
               </tr>
@@ -133,7 +133,7 @@ export default function PlantClient({ rows, isOpen, here, tab = 'open', counts =
                     <span className="mat-name">{describe(it) || it.description}</span>
                     <span className="mat-sub">
                       {[!describe(it)?.includes(it.color_name) && it.color_name, `Ordered ${int(it.qty)}`, `Dispatched ${int(it.dispatched_qty) || 0}`].filter(Boolean).join(' · ')}
-                      {it.fg_stock != null && <span className="plant-stock-sub"> · {`Plant stock ${int(it.fg_stock)}${it.fg_reserved > 0 ? ` (${int(it.fg_free)} free)` : ''}`}</span>}
+                      {it.fg_stock != null && <span className="plant-stock-sub"> · {`Stock ${int(it.fg_stock)}${it.fg_reserved > 0 ? ` (${int(it.fg_free)} free)` : ''}`}</span>}
                     </span>
                   </td>
                   <td className="num fw6 c-n c-bal" data-label="Balance">{int(bal)}</td>
@@ -142,7 +142,7 @@ export default function PlantClient({ rows, isOpen, here, tab = 'open', counts =
                   </td>
                   <td
                     className="num c-n c-stock"
-                    data-label="Plant stock"
+                    data-label="Stock"
                     title={it.fg_stock != null
                       ? `In plant FG store: ${int(it.fg_stock)} pcs${it.fg_reserved > 0 ? ` (${int(it.fg_reserved)} reserved, ${int(it.fg_free)} free)` : ''}${it.fg_in_qc > 0 ? ` · ${int(it.fg_in_qc)} in QC` : ''}`
                       : 'Set FG store in Company Settings to track plant stock'}

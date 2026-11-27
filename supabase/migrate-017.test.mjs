@@ -100,7 +100,7 @@ assert.equal(Number(await val(`select ready_qty from order_items where id = 2`))
 assert.deepEqual(Object.values(await pos(A)).map(Number), [A, 15, 15, 13, 2, 0])
 await fails(`select qc_production($1, 'Q')`, [j([{ id: P, pass: 18, b: 0, reject: 0 }])], /must equal/)  // already done
 
-// FG stock report.
-const rows = (await db.query(`select code, opening, inward, outward, closing from fg_stock_summary('2026-10-01', '2026-10-31') order by code`)).rows
+// FG stock report. Up to today: dispatches are dated the day the test runs, not in October.
+const rows = (await db.query(`select code, opening, inward, outward, closing from fg_stock_summary('2026-10-01', (now() at time zone 'Asia/Riyadh')::date) order by code`)).rows
 assert.deepEqual(rows.map((r) => [r.code.endsWith('-B') ? 'B' : 'A', +r.opening, +r.inward, +r.outward, +r.closing]), [['A', 0, 27, 12, 15], ['B', 0, 2, 0, 2]])
 console.log('migrate-017: all checks passed')

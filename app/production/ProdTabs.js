@@ -10,7 +10,7 @@ export default function ProdTabs({ tab, missing }) {
   if (tab === 'fg') {
     return (
       <div className="tabs-bar">
-        <PageTabs group="stock" on="/production/fg" label="Inventory" />
+        <PageTabs group="stock" on="/production/fg" label="RM & FG IMS" />
       </div>
     )
   }
