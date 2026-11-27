@@ -79,18 +79,18 @@ export default async function RootLayout({ children }) {
       ...(boss ? [
         // Flat navigation list: one clean item per major workflow hub
         { href: '/inventory/po', label: 'Purchasing', icon: 'ph-shopping-cart', badge: (me.role === 'admin' ? inv.po : 0) + (inv.grn || 0), match: ['/inventory/grn'], more: true },
+        {
+          href: '/inventory',
+          label: 'Inventory',
+          icon: 'ph-warehouse',
+          match: ['/inventory', '/production/fg', '/inventory/issue', '/inventory/adjust'],
+        },
         can(me, 'plant') && {
           href: '/plant',
           label: 'Production',
           icon: 'ph-factory',
           badge: lines + (inv.toPlan || 0) + (inv.qc || 0),
           match: ['/plant', '/production', '/production/dpr', '/production/qc', '/production/plan'],
-        },
-        {
-          href: '/inventory',
-          label: 'Inventory',
-          icon: 'ph-warehouse',
-          match: ['/inventory', '/production/fg', '/inventory/issue', '/inventory/adjust'],
         },
         { href: '/admin/reports', label: 'Reports', icon: 'ph-chart-bar', match: ['/production/reports'], more: true },
       ] : [
