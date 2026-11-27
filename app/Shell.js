@@ -33,7 +33,7 @@ const PAGES = [
   [/^\/admin\/reports\/dispatch/, 'Reports', 'Dispatch: Delivery Orders and lead times'],
   [/^\/admin\/reports/, 'Reports', 'Sales, waiting times and dispatch'],
   [/^\/orders\/\d+\/print/, 'Print document', 'Print it, or choose “Save as PDF” as the printer'],
-  [/^\/plant/, 'Production', 'Ready to ship: mark finished pieces ready, then ship them'],
+  [/^\/plant/, 'Orders', 'Ready to ship: mark finished pieces ready, then ship them'],
   [/^\/admin\/customers/, 'Settings', 'Customers'],
   [/^\/admin\/items/, 'Settings', 'Items: one list per column; quotes combine them'],
   [/^\/admin\/users/, 'Settings', 'Users: logins and roles'],
@@ -69,7 +69,7 @@ function useDismiss(open, setOpen, ref) {
 }
 
 function getFallback(path) {
-  if (path.startsWith('/orders/new') || path.startsWith('/orders/')) return '/orders'
+  if (path.startsWith('/orders/new') || path.startsWith('/orders/') || path.startsWith('/plant')) return '/orders'
   if (path.startsWith('/inventory/po/new') || path.startsWith('/inventory/po/')) return '/inventory/po'
   if (path.startsWith('/inventory/grn/')) return '/inventory/po'
   if (path.startsWith('/admin/bom')) return '/admin/settings'
@@ -194,7 +194,7 @@ export default function Shell({ me, nav, settings, logout, children }) {
   const active = (href) => {
     const [path, query] = href.split('?')
     if (query) return pathname === path && query === `status=${status}`
-    if (path === '/orders') return pathname === '/orders'
+    if (path === '/orders') return pathname === '/orders' || pathname === '/plant' || pathname.startsWith('/plant/')
     return href === best
   }
   const [title, sub] = pathname === '/orders'

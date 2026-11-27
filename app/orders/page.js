@@ -5,6 +5,7 @@ import { can } from '@/lib/tas'
 import { IntentLink, LinkBusy } from '../ui'
 import OrdersView from './OrdersView'
 import PageHelp from '../PageHelp'
+import PageTabs from '../PageTabs'
 import DriveSyncButton from '../DriveSyncButton'
 
 // Workflow pipeline stages:
@@ -108,6 +109,7 @@ export default async function Orders({ searchParams }) {
 
   return (
     <>
+      {can(me, 'plant') && <PageTabs group="orders" on="/orders" label="Orders" />}
       <PageHelp page="orders" />
       <div className="card">
         <div className="tbl-top">

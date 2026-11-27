@@ -2,9 +2,12 @@ import { IntentLink, LinkBusy } from './ui'
 
 // Pages that share one sidebar link (Production, Stock, Reports) show these tabs at the top. on: the lit tab's href.
 const GROUPS = {
+  orders: [
+    ['/orders', 'Orders', 'ph-list-checks'],
+    ['/plant', 'Ready to ship', 'ph-truck'],
+  ],
   // One row of tabs per area: the shift steps (enter output, then check pieces) are tabs of Production too.
   production: [
-    ['/plant', 'Ready to ship', 'ph-truck'],
     ['/production', 'Planning', 'ph-calendar-check'],
     ['/production/dpr', 'Shift output (DPR)', 'ph-clipboard-text'],
     ['/production/qc', 'Check pieces (QC)', 'ph-seal-check'],

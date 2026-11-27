@@ -1786,6 +1786,8 @@ button.chip-link { border: 0; cursor: pointer; font-family: inherit; background:
 .plant-tbl .c-cust { min-width: 140px; max-width: 220px; white-space: normal; }
 .plant-tbl .c-desc { min-width: 220px; max-width: 380px; white-space: normal; }
 .plant-tbl .status-sel { max-width: 170px; }
+.plant-tbl .c-stock { white-space: nowrap; }
+.plant-stock-sub { display: none; }
 .plant-tbl tr.selected td { background-color: color-mix(in srgb, var(--accent) 6%, var(--card)); }
 .plant-tbl input[type="checkbox"] { width: 20px; height: 20px; }
 .mat-name { display: block; font-weight: 600; overflow-wrap: anywhere; }
@@ -1970,7 +1972,8 @@ dialog.modal.closing::backdrop { animation: overlayOut var(--dur-exit) linear fo
   .plant-tbl .c-desc { grid-area: desc; }
   .plant-tbl .c-bal { grid-area: bal; align-self: start; text-align: right; font-size: 1rem; }
   .plant-tbl .c-bal::before { content: "Balance"; display: block; font-size: 0.75rem; font-weight: 600; color: var(--sub); }
-  .plant-tbl .c-ready { display: none; }
+  .plant-tbl .c-ready, .plant-tbl .c-stock { display: none; }
+  .plant-stock-sub { display: inline; }
   .plant-tbl .c-st { grid-area: st; justify-self: end; }
   .plant-tbl .c-plant { grid-area: plant; align-self: center; min-width: 0; }
   .plant-tbl .c-plant :is(.plant-st, select) { width: 100%; max-width: none; }

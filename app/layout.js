@@ -12,7 +12,7 @@ import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { MY_WORK, authClient, currentUser, myWorkIds, openLineCount, orderCounts, sessionUserId } from '@/lib/server'
+import { MY_WORK, authClient, currentUser, myWorkIds, orderCounts, sessionUserId } from '@/lib/server'
 import { can } from '@/lib/tas'
 import { WARN, getUsage } from '@/lib/usage'
 import { invTodo } from '@/lib/todo'
@@ -58,7 +58,7 @@ export default async function RootLayout({ children }) {
     signedIn ? invTodo() : null,
     myWorkPromise,
   ])
-  const lines = me && can(me, 'plant') ? c.LINES ?? await openLineCount() : 0
+
   let nav = []
   let settings = []
   if (me) {
@@ -75,7 +75,7 @@ export default async function RootLayout({ children }) {
     const boss = ['admin', 'manager'].includes(me.role)
     nav = [
       { href: '/', label: 'Dashboard', icon: 'ph-squares-four' },
-      { href: '/orders', label: 'Orders', icon: 'ph-list-checks', badge: todo },
+      { href: '/orders', label: 'Orders', icon: 'ph-list-checks', badge: todo, match: can(me, 'plant') ? ['/plant'] : undefined },
       ...(boss ? [
         // Flat navigation list: one clean item per major workflow hub
         { href: '/inventory/po', label: 'Purchasing', icon: 'ph-shopping-cart', badge: (me.role === 'admin' ? inv.po : 0) + (inv.grn || 0), match: ['/inventory/grn'], more: true },
@@ -86,16 +86,14 @@ export default async function RootLayout({ children }) {
           match: ['/inventory', '/production/fg', '/inventory/issue', '/inventory/adjust'],
         },
         can(me, 'plant') && {
-          href: '/plant',
+          href: '/production',
           label: 'Production',
           icon: 'ph-factory',
-          badge: lines + (inv.toPlan || 0) + (inv.qc || 0),
-          match: ['/plant', '/production', '/production/dpr', '/production/qc', '/production/plan'],
+          badge: (inv.toPlan || 0) + (inv.qc || 0),
+          match: ['/production', '/production/dpr', '/production/qc', '/production/plan'],
         },
         { href: '/admin/reports', label: 'Reports', icon: 'ph-chart-bar', match: ['/production/reports'], more: true },
-      ] : [
-        can(me, 'plant') && { href: '/plant', label: 'Production', icon: 'ph-factory', badge: lines },
-      ]),
+      ] : []),
     ].filter(Boolean)
     // Admin masters sit in the Settings group at the bottom of the sidebar.
     if (me.role === 'admin') {

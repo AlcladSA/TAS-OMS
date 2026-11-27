@@ -78,6 +78,7 @@ export default function PlantClient({ rows, isOpen, here, tab = 'open', counts =
                 <th className="c-desc">Material</th>
                 <th className="r c-bal">Balance</th>
                 <th className="r c-ready">Ready</th>
+                <th className="r c-stock" title="Finished goods inventory in plant FG store (free / total)">Plant stock</th>
                 <th className="c-plant">Production</th>
                 <th className="c-st">Dispatch</th>
                 <th className="r c-act">Action</th>
@@ -131,12 +132,38 @@ export default function PlantClient({ rows, isOpen, here, tab = 'open', counts =
                   <td className="c-desc">
                     <span className="mat-name">{describe(it) || it.description}</span>
                     <span className="mat-sub">
-                      {[!describe(it)?.includes(it.color_name) && it.color_name, `Ordered ${int(it.qty)}`, `Dispatched ${int(it.dispatched_qty) || 0}`, it.fg_free != null && `Free in stock ${int(it.fg_free)}`].filter(Boolean).join(' · ')}
+                      {[!describe(it)?.includes(it.color_name) && it.color_name, `Ordered ${int(it.qty)}`, `Dispatched ${int(it.dispatched_qty) || 0}`].filter(Boolean).join(' · ')}
+                      {it.fg_stock != null && <span className="plant-stock-sub"> · {`Plant stock ${int(it.fg_stock)}${it.fg_reserved > 0 ? ` (${int(it.fg_free)} free)` : ''}`}</span>}
                     </span>
                   </td>
                   <td className="num fw6 c-n c-bal" data-label="Balance">{int(bal)}</td>
                   <td className="num c-n c-ready" data-label="Ready">
                     {rQty > 0 ? <span className="badge b-teal" title="Ready, DO not generated yet">{int(rQty)}</span> : <span className="muted">0</span>}
+                  </td>
+                  <td
+                    className="num c-n c-stock"
+                    data-label="Plant stock"
+                    title={it.fg_stock != null
+                      ? `In plant FG store: ${int(it.fg_stock)} pcs${it.fg_reserved > 0 ? ` (${int(it.fg_reserved)} reserved, ${int(it.fg_free)} free)` : ''}${it.fg_in_qc > 0 ? ` · ${int(it.fg_in_qc)} in QC` : ''}`
+                      : 'Set FG store in Company Settings to track plant stock'}
+                  >
+                    {it.fg_stock != null ? (
+                      <>
+                        <span className={`fw6${!isDone && it.fg_stock <= 0 ? ' red' : !isDone && it.fg_free >= (bal - rQty) ? ' cg' : ''}`}>
+                          {int(it.fg_stock)}
+                        </span>
+                        {(it.fg_reserved > 0 || it.fg_in_qc > 0) && (
+                          <span className="cell-sub">
+                            {[
+                              it.fg_reserved > 0 && `${int(it.fg_free)} free`,
+                              it.fg_in_qc > 0 && `${int(it.fg_in_qc)} in QC`,
+                            ].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
                   </td>
                   <td className="nowrap c-plant">
                     {isOpen && !isDone ? (

@@ -75,7 +75,7 @@ export default async function Plant({ searchParams }) {
 
   return (
     <>
-      <PageTabs group="production" on="/plant" label="Production" />
+      <PageTabs group="orders" on="/plant" label="Orders" />
       <div className="card">
         <div className="tbl-top">
           <nav className="tabs tabs-dynamic mb-0" aria-label="Which lines">
@@ -119,7 +119,23 @@ export default async function Plant({ searchParams }) {
           </div>
         )}
 
-        <PlantClient rows={rows?.map((r) => ({ ...r, fg_free: fg.on ? fg.pos[r.fg_item_id]?.free ?? 0 : null, fg_cap: fg.link }))} isOpen={isOpen} here={here} tab={tab} counts={counts} />
+        <PlantClient
+          rows={rows?.map((r) => {
+            const p = fg.on ? fg.pos[r.fg_item_id] : null
+            return {
+              ...r,
+              fg_stock: fg.on ? (p?.stock ?? 0) : null,
+              fg_reserved: fg.on ? (p?.reserved ?? 0) : null,
+              fg_free: fg.on ? (p?.free ?? 0) : null,
+              fg_in_qc: fg.on ? (p?.in_qc ?? 0) : null,
+              fg_cap: fg.link,
+            }
+          })}
+          isOpen={isOpen}
+          here={here}
+          tab={tab}
+          counts={counts}
+        />
 
         {rows?.length === LIMIT && (
           <div className="tbl-foot center">
