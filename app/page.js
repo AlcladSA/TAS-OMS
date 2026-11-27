@@ -6,13 +6,14 @@ import { CustName, LinkBusy } from './ui'
 
 export const metadata = { title: 'Dashboard' }
 
-// One tile of a pipeline row. Tiles with work waiting get a solid surface; empty ones stay quiet.
+// One tile of a pipeline row.
 function Tile({ href, icon, n, label, sub }) {
+  const active = n > 0
   return (
-    <Link prefetch={false} href={href} className={`dash-stat${n > 0 ? ' has' : ''}`}>
+    <Link prefetch={false} href={href} className={`dash-stat${active ? ' is-active' : ' is-zero'}`}>
       <div className="dash-stat-top">
         <i className={`ph ${icon}`} />
-        <i className="ph ph-caret-right" />
+        <i className="ph ph-caret-right stat-caret" />
       </div>
       <div className="dash-stat-num">{n}</div>
       <div className="dash-stat-lbl">{label}</div>
@@ -30,12 +31,12 @@ export default async function Dashboard() {
     boss ? invTodo() : { po: 0, grn: 0, qc: 0, toPlan: 0, toPlanPcs: 0 },
     db().from('order_events')
       .select('id, at, by_name, action, detail, order_id, order:orders(quote_no, customer_name)')
-      .order('id', { ascending: false }).limit(10),
+      .order('id', { ascending: false }).limit(14),
     db().from('orders')
-      .select('id, quote_no, quote_date, customer_name, status, dispatch_status, transport, vat_rate, items:order_items(qty, m2, price, total)')
+      .select('id, quote_no, quote_date, customer_name, status, dispatch_status, doc_no, transport, vat_rate, batches:order_batches(id, do_no, do_date, pi_no, pi_date, tax_invoice_path), items:order_items(qty, m2, price, total)')
       .not('status', 'in', '("REJECTED","CANCELLED")')
       .order('id', { ascending: false })
-      .limit(6),
+      .limit(10),
   ])
 
   const recent = (rawRecent || []).map((o) => ({ ...o, total: totals(o.items || [], o.transport, o.vat_rate).total }))
@@ -43,26 +44,48 @@ export default async function Dashboard() {
   const inProduction = c.AWAIT_DISPATCH || 0
   const readyToShip = c.AWAIT_DO || 0
   const billing = (c.AWAIT_PI || 0) + (c.AWAIT_TAX || 0)
+  const totalActionItems = toApprove + billing
 
   return (
     <div className="dash">
       <div className="dash-head">
         <div>
           <h2 className="dash-hi">Good day, {me.full_name}</h2>
-          <div className="dash-role">{me.role}</div>
+          <div className="dash-role-row">
+            <span className="dash-role">{me.role}</span>
+            {totalActionItems > 0 ? (
+              <span className="badge b-warn ml-6">
+                <i className="ph ph-warning-circle" />
+                {totalActionItems} action needed
+              </span>
+            ) : (
+              <span className="badge b-ok ml-6">
+                <i className="ph ph-check" />
+                All clear
+              </span>
+            )}
+          </div>
         </div>
         <div className="dash-acts">
           {can(me, 'sales') && (
-            <Link prefetch={false} href="/orders/new" className="btn btn-primary btn-sm"><LinkBusy /><i className="ph ph-plus" />New quotation</Link>
+            <Link prefetch={false} href="/orders/new" className="btn btn-primary btn-sm">
+              <LinkBusy /><i className="ph ph-plus" />New quotation
+            </Link>
           )}
           {can(me, 'plant') && (
-            <Link prefetch={false} href="/production/dpr/new" className="btn btn-ghost btn-sm"><LinkBusy /><i className="ph ph-gear-six" />Enter shift output</Link>
+            <Link prefetch={false} href="/production/dpr/new" className="btn btn-ghost btn-sm">
+              <LinkBusy /><i className="ph ph-gear-six" />Enter shift output
+            </Link>
           )}
           {can(me, 'plant') && (
-            <Link prefetch={false} href="/inventory/issue/new" className="btn btn-ghost btn-sm"><LinkBusy /><i className="ph ph-arrows-left-right" />Issue to line</Link>
+            <Link prefetch={false} href="/inventory/issue/new" className="btn btn-ghost btn-sm">
+              <LinkBusy /><i className="ph ph-arrows-left-right" />Issue to line
+            </Link>
           )}
           {can(me, 'buying') && (
-            <Link prefetch={false} href="/inventory/po/new" className="btn btn-ghost btn-sm"><LinkBusy /><i className="ph ph-shopping-cart" />New PO</Link>
+            <Link prefetch={false} href="/inventory/po/new" className="btn btn-ghost btn-sm">
+              <LinkBusy /><i className="ph ph-shopping-cart" />New PO
+            </Link>
           )}
         </div>
       </div>
@@ -75,10 +98,34 @@ export default async function Dashboard() {
               <Link prefetch={false} href="/orders">All active orders ({c.ACTIVE || 0}) →</Link>
             </div>
             <div className="dash-stat-grid">
-              <Tile href="/orders?status=PENDING" icon="ph-hourglass" n={toApprove} label="1. To approve" sub={toApprove === 1 ? '1 quote' : `${toApprove} quotes`} />
-              <Tile href="/orders?status=AWAIT_DISPATCH" icon="ph-package" n={inProduction} label="2. In production" sub={inProduction === 1 ? '1 order' : `${inProduction} orders`} />
-              <Tile href="/orders?status=AWAIT_DO" icon="ph-truck" n={readyToShip} label="3. Ready to ship" sub={readyToShip === 1 ? '1 order' : `${readyToShip} orders`} />
-              <Tile href="/orders?status=AWAIT_PI" icon="ph-receipt" n={billing} label="4. Billing" sub={`${c.AWAIT_PI || 0} PI · ${c.AWAIT_TAX || 0} tax invoice`} />
+              <Tile
+                href="/orders?status=PENDING"
+                icon="ph-hourglass"
+                n={toApprove}
+                label="1. To approve"
+                sub={toApprove === 1 ? '1 quote' : `${toApprove} quotes`}
+              />
+              <Tile
+                href="/orders?status=AWAIT_DISPATCH"
+                icon="ph-package"
+                n={inProduction}
+                label="2. In production"
+                sub={inProduction === 1 ? '1 order' : `${inProduction} orders`}
+              />
+              <Tile
+                href="/orders?status=AWAIT_DO"
+                icon="ph-truck"
+                n={readyToShip}
+                label="3. Ready to ship"
+                sub={readyToShip === 1 ? '1 order' : `${readyToShip} orders`}
+              />
+              <Tile
+                href="/orders?status=AWAIT_PI"
+                icon="ph-receipt"
+                n={billing}
+                label="4. Billing"
+                sub={billing > 0 ? `${c.AWAIT_PI || 0} PI · ${c.AWAIT_TAX || 0} tax invoice` : 'None pending'}
+              />
             </div>
           </section>
 
@@ -89,10 +136,34 @@ export default async function Dashboard() {
                 <Link prefetch={false} href="/inventory">Inventory →</Link>
               </div>
               <div className="dash-stat-grid">
-                <Tile href="/inventory/po" icon="ph-shopping-cart" n={inv.po} label="Purchasing" sub={`${inv.po} waiting`} />
-                <Tile href="/inventory/grn" icon="ph-truck" n={inv.grn} label="Receive and check" sub={inv.grn === 1 ? '1 delivery' : `${inv.grn} deliveries`} />
-                <Tile href="/production" icon="ph-calendar-check" n={inv.toPlan} label="Shortages" sub={inv.toPlanPcs > 0 ? `${inv.toPlanPcs} PCS needed` : 'None'} />
-                <Tile href="/production/qc" icon="ph-seal-check" n={inv.qc} label="Check pieces" sub={inv.qc === 1 ? '1 row waiting' : `${inv.qc} rows waiting`} />
+                <Tile
+                  href="/inventory/po"
+                  icon="ph-shopping-cart"
+                  n={inv.po}
+                  label="Purchasing"
+                  sub={`${inv.po} waiting`}
+                />
+                <Tile
+                  href="/inventory/grn"
+                  icon="ph-truck"
+                  n={inv.grn}
+                  label="Receive and check"
+                  sub={inv.grn === 1 ? '1 delivery' : `${inv.grn} deliveries`}
+                />
+                <Tile
+                  href="/production"
+                  icon="ph-calendar-check"
+                  n={inv.toPlan}
+                  label="Shortages"
+                  sub={inv.toPlanPcs > 0 ? `${inv.toPlanPcs} PCS needed` : 'None'}
+                />
+                <Tile
+                  href="/production/qc"
+                  icon="ph-seal-check"
+                  n={inv.qc}
+                  label="Check pieces"
+                  sub={inv.qc === 1 ? '1 row waiting' : `${inv.qc} rows waiting`}
+                />
               </div>
             </section>
           )}
@@ -105,23 +176,55 @@ export default async function Dashboard() {
             <div className="tbl-wrap">
               <table className="tbl">
                 <thead>
-                  <tr><th>Quote no</th><th>Customer</th><th>Status</th><th className="r">Total (SAR)</th></tr>
+                  <tr>
+                    <th>Quote no</th>
+                    <th>Customer</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th className="r">Total (SAR)</th>
+                    <th className="r">Action</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {recent.map((o) => (
-                    <tr key={o.id}>
-                      <td className="nowrap"><Link prefetch={false} href={`/orders?view=${o.id}`} className="qno">{o.quote_no}</Link></td>
-                      <td className="fw6"><CustName name={o.customer_name} /></td>
-                      <td className="nowrap">
-                        <span className={`badge b-${o.status}`}>{STATUS[o.status] || o.status}</span>{' '}
-                        {o.status === 'APPROVED' && DISPATCH[o.dispatch_status] && (
-                          <span className={`badge ${DISPATCH[o.dispatch_status][1]}`}>{DISPATCH[o.dispatch_status][0]}</span>
-                        )}
-                      </td>
-                      <td className="num fw6 nowrap">{money(o.total)}</td>
-                    </tr>
-                  ))}
-                  {!recent.length && <tr><td colSpan={4} className="c muted">No orders yet.</td></tr>}
+                  {recent.map((o) => {
+                    const bs = o.batches || []
+                    const needPi = o.status === 'APPROVED' && bs.some((b) => b.do_date && !b.pi_no)
+                    const needTax = o.status === 'APPROVED' && bs.some((b) => b.pi_no && !b.tax_invoice_path)
+                    return (
+                      <tr key={o.id}>
+                        <td className="nowrap">
+                          <Link prefetch={false} href={`/orders?view=${o.id}`} className="qno">{o.quote_no}</Link>
+                        </td>
+                        <td className="fw6 c-cust">
+                          <CustName name={o.customer_name} />
+                        </td>
+                        <td className="nowrap">
+                          <span className={`badge b-${o.status}`}>{STATUS[o.status] || o.status}</span>{' '}
+                          {o.status === 'APPROVED' && DISPATCH[o.dispatch_status] && (
+                            <span className={`badge ${DISPATCH[o.dispatch_status][1]}`}>{DISPATCH[o.dispatch_status][0]}</span>
+                          )}
+                        </td>
+                        <td className="nowrap muted text-xs">{day(o.quote_date)}</td>
+                        <td className="num fw6 nowrap r">{money(o.total)}</td>
+                        <td className="nowrap r">
+                          {needPi ? (
+                            <Link prefetch={false} href={`/orders?view=${o.id}&open_batch_pi=1`} className="btn btn-xs btn-success">
+                              <i className="ph ph-receipt" />Make PI
+                            </Link>
+                          ) : needTax ? (
+                            <Link prefetch={false} href={`/orders?view=${o.id}`} className="btn btn-xs btn-warn">
+                              <i className="ph ph-upload-simple" />Upload Invoice
+                            </Link>
+                          ) : (
+                            <Link prefetch={false} href={`/orders?view=${o.id}`} className="btn btn-xs btn-ghost">
+                              View
+                            </Link>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {!recent.length && <tr><td colSpan={6} className="c muted">No orders yet.</td></tr>}
                 </tbody>
               </table>
             </div>

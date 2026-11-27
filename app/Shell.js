@@ -194,12 +194,12 @@ export default function Shell({ me, nav, settings, logout, children }) {
   const active = (href) => {
     const [path, query] = href.split('?')
     if (query) return pathname === path && query === `status=${status}`
-    if (path === '/orders') return pathname === '/orders' && !status
+    if (path === '/orders') return pathname === '/orders'
     return href === best
   }
   const [title, sub] = pathname === '/orders'
-    ? LIST_TITLES[status] || LIST_TITLES[sp.get('show') === 'all' ? 'ALL' : MY_WORK_ROLES.includes(me.role) ? 'MINE' : 'ACTIVE']
-    : (PAGES.find(([re]) => re.test(pathname)) || [null, 'TAS OMS', '']).slice(1)
+    ? LIST_TITLES[status] || LIST_TITLES[sp.get('show') === 'all' ? 'ALL' : 'ACTIVE']
+    : (PAGES.find(([re]) => re.test(pathname)) || [null, 'TAS OS', '']).slice(1)
   // IntentLink prefetches on hover/touch (150-300 ms head start).
   // staleTimes.dynamic: 30 keeps the prefetched page ready for 30s.
   const item = (n) => (
@@ -314,7 +314,7 @@ export default function Shell({ me, nav, settings, logout, children }) {
           {/* Same mark as the favicon (app/icon.svg) */}
           <div className="sb-logo"><svg viewBox="12 16 40 34" aria-hidden="true"><path d="M12 50V30l11 7v-7l11 7v-7l11 7V16h7v34z" /></svg></div>
           <div>
-            <div className="sb-name">TAS OMS</div>
+            <div className="sb-name">TAS OS</div>
             <div className="sb-sub">TAS International Mfg.</div>
           </div>
         </button>

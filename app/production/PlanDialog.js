@@ -25,7 +25,7 @@ export default function PlanDialog({ plan, stock, m2, s, closeHref, coreSettings
 
   const footer = (
     <>
-      <PrintButton cls="btn btn-ghost" label="Print / Save PDF" />
+      
       {plan.status === 'OPEN' && (
         <>
           {plan.issues?.length > 0 ? (
@@ -44,14 +44,12 @@ export default function PlanDialog({ plan, stock, m2, s, closeHref, coreSettings
           </Link>
         </>
       )}
-      <Link prefetch={false} href={closeHref} className="btn btn-ghost">
-        Close
-      </Link>
     </>
   )
 
   return (
     <RouteDialog
+      print={plan.plan_no}
       key={plan.id}
       icon="ph-calendar-check"
       title={
@@ -101,7 +99,7 @@ export default function PlanDialog({ plan, stock, m2, s, closeHref, coreSettings
         <div className="card">
           <div className="tbl-top">
             <h2 className="tbl-ttl">
-              <i className="ph ph-stack" />Planned Items <span className="badge b-none">{plan.items?.length ?? 0}</span>
+              <i className="ph ph-stack" />Planned Items {(plan.items?.length ?? 0) > 0 && <span className="badge b-none">{plan.items.length}</span>}
             </h2>
           </div>
           <div className="tbl-wrap">

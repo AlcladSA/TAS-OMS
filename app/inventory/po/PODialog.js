@@ -35,7 +35,7 @@ export default function PODialog({ po, s, me, back, closeHref }) {
 
   const footer = (
     <>
-      <PrintButton cls="btn btn-primary" />
+      
       {po.status === 'PENDING' && me.role === 'admin' && (
         <>
           {reasonModal(rejectPO, `Reject ${po.po_no}?`, 'Reject', 'btn-danger')}
@@ -59,6 +59,7 @@ export default function PODialog({ po, s, me, back, closeHref }) {
 
   return (
     <RouteDialog
+      print={po.po_no}
       key={po.id}
       icon="ph-shopping-cart"
       title={<>PO {po.po_no} <span className={`badge ${cls}`}>{label}</span></>}

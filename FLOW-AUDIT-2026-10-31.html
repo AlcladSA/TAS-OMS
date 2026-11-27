@@ -1,0 +1,204 @@
+<title>TAS OMS Flow Audit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Public+Sans:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column; summary strip, then findings grouped by severity, then what passed. */
+:root {
+  --bg: #f6f7f8; --panel: #ffffff; --fg: #1b2026; --muted: #5d6670; --line: #dde1e5;
+  --accent: #b3261e; --p0: #b3261e; --p1: #9e4a00; --p2: #765c00; --p3: #4a5e6e; --ok: #1a6b3d;
+  --chip: #eef0f2; --code: #eef1f4;
+  --display: 'Archivo', 'Arial Narrow', Arial, sans-serif;
+  --body: 'Public Sans', 'Segoe UI', Arial, sans-serif;
+  --mono: 'JetBrains Mono', Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161a; --panel: #1a1f25; --fg: #e6e9ec; --muted: #9aa4ae; --line: #2c333b;
+  --accent: #ff7a6e; --p0: #ff7a6e; --p1: #ffa456; --p2: #e2c04a; --p3: #9fb4c6; --ok: #5fd08f;
+  --chip: #232a31; --code: #222a32; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12161a; --panel: #1a1f25; --fg: #e6e9ec; --muted: #9aa4ae; --line: #2c333b;
+  --accent: #ff7a6e; --p0: #ff7a6e; --p1: #ffa456; --p2: #e2c04a; --p3: #9fb4c6; --ok: #5fd08f;
+  --chip: #232a31; --code: #222a32; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 15px/1.6 var(--body); }
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: 2rem; font-weight: 800; }
+h2 { font-size: 1.15rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; display: flex; gap: 10px; align-items: center; }
+h3 { font-size: 1.05rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+.sub { color: var(--muted); }
+code { font: .86em var(--mono); background: var(--code); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.strip div { background: var(--panel); padding: 14px 16px; display: grid; gap: 2px; }
+.strip b { font: 800 1.6rem var(--display); font-variant-numeric: tabular-nums; }
+.strip span { color: var(--muted); font-size: .82rem; text-transform: uppercase; letter-spacing: .05em; }
+.sev { font: 600 .72rem var(--mono); padding: 2px 8px; border-radius: 999px; border: 1.5px solid currentColor; letter-spacing: .04em; }
+.s0 { color: var(--p0); } .s1 { color: var(--p1); } .s2 { color: var(--p2); } .s3 { color: var(--p3); } .sok { color: var(--ok); }
+section { display: grid; gap: 12px; }
+.f { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 6px; padding: 16px 18px; display: grid; gap: 8px; min-width: 0; }
+.f.s0 { --c: var(--p0); } .f.s1 { --c: var(--p1); } .f.s2 { --c: var(--p2); } .f.s3 { --c: var(--p3); }
+.f h3 { color: var(--fg); }
+.f dl { margin: 0; display: grid; grid-template-columns: 92px 1fr; gap: 4px 12px; color: var(--fg); }
+.f dt { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; padding-top: 2px; }
+.f dd { margin: 0; min-width: 0; }
+.where { font: .8rem var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+.tbl { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pass { color: var(--ok); font-weight: 600; }
+.flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: .88rem; }
+.flow span { background: var(--chip); padding: 3px 10px; border-radius: 4px; }
+.flow i { color: var(--muted); font-style: normal; }
+@media (max-width: 520px) { .f dl { grid-template-columns: 1fr; } .f dt { padding-top: 6px; } h1 { font-size: 1.6rem; } }
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:8px">
+    <p class="sub" style="font:600 .8rem var(--mono);letter-spacing:.06em">TAS OMS · LOCAL TREE · 31 OCT 2026</p>
+    <h1>Flow and BOM audit</h1>
+    <p class="sub">Every stage of the app was checked against its code and database functions: sign-in, Quote → Approve → Ready → Ship (DO) → PI → Tax invoice, then Plan → Issue → DPR → QC → FG, and Purchasing. The BOM was tested on all 3,040 finished goods in <code>All_Finished_Goods_BOM.xlsx</code> and on the 11 real items in the database. Nothing was written to the database.</p>
+  </header>
+
+  <div class="flow" aria-label="Order flow checked">
+    <span>Quote</span><i>→</i><span>Approve</span><i>→</i><span>Mark ready</span><i>→</i><span>Ship = DO</span><i>→</i><span>PI</span><i>→</i><span>Tax invoice</span>
+    <i style="margin-left:10px">·</i><span>Plan</span><i>→</i><span>Auto-issue RM</span><i>→</i><span>DPR</span><i>→</i><span>QC</span><i>→</i><span>FG stock</span>
+  </div>
+
+  <div class="strip">
+    <div><b class="s0">1</b><span>P0 · fix now</span></div>
+    <div><b class="s1">3</b><span>P1 · wrong results</span></div>
+    <div><b class="s2">5</b><span>P2 · edge cases</span></div>
+    <div><b class="s3">3</b><span>P3 · cleanup</span></div>
+    <div><b class="sok">0</b><span>BOM qty differences vs Excel</span></div>
+  </div>
+
+  <section>
+    <h2><span class="sev s0">P0</span>Security</h2>
+    <article class="f s0">
+      <h3>1. Any URL ending in “.png” skips sign-in, and the app then trusts a user ID sent by the browser</h3>
+      <dl>
+        <dt>What</dt><dd><code>proxy.js</code> skips every path matching <code>.*\.png$</code>. The proxy is also what strips the <code>x-tas-user</code> header, so on those paths a forged header reaches <code>sessionUserId()</code> untouched. Pages such as <code>/admin/anything.png</code> still route to <code>app/admin/[master]</code>, and Server Actions posted to that URL run as whoever the header names.</dd>
+        <dt>Proof</dt><dd>On localhost: <code>/admin/customers.png</code> with no header → 307 to /login. Same URL with an admin's ID in <code>x-tas-user</code> → passed <code>requireRole('admin')</code> and rendered the admin shell. User IDs are not secret (the salesperson picker carries them as option values). The live site runs the same code. I did not test it.</dd>
+        <dt>Fix</dt><dd>Remove <code>.*\.png$</code> from the matcher and list the real image files by name (<code>letterhead.png</code>, the app icons). Also make <code>sessionUserId()</code> trust the header only when the proxy marks it with a server secret, so a future matcher change can't reopen this. About 5 lines.</dd>
+      </dl>
+      <p class="where">proxy.js:41 · lib/server.js:30</p>
+    </article>
+  </section>
+
+  <section>
+    <h2><span class="sev s1">P1</span>Wrong results</h2>
+    <article class="f s1">
+      <h3>2. Plan “Auto-issue RM to line” can see only 1,000 of 2,203 materials</h3>
+      <dl>
+        <dt>What</dt><dd><code>autoIssuePlan</code> reads <code>materials</code> with a plain <code>select('*')</code>, and Supabase returns at most 1,000 rows. The plan dialog loads the full list through <code>invMasters()</code>, so the screen shows every material matched while the issue skips most of them.</dd>
+        <dt>Proof</dt><dd>BOM run for all 3,040 products: with every material loaded, every line finds a material. With the first 1,000 rows only, all 4 core granules, both adhesives, all 10 protective films, 8 bottom coils and 160 top coils go unmatched. Auto-issue then moves only part of the material, or stops with “No raw material could be matched”.</dd>
+        <dt>Fix</dt><dd>Use <code>(await invMasters()).materials</code> in <code>autoIssuePlan</code>. One line.</dd>
+      </dl>
+      <p class="where">app/production/actions.js:249</p>
+    </article>
+    <article class="f s1">
+      <h3>3. No 1510 mm “SUPER HIGH SS10+” protective film in Materials</h3>
+      <dl>
+        <dt>What</dt><dd>The protective film level comes from the colour, and 1500 mm panels need a 1510 mm film. Materials has 1510 mm film only in LOW, MEDIUM and HIGH, for both brands. Three of the 11 real products are 1500 mm in SUPER HIGH colours, so their DPR shows no film material and auto-issue silently leaves the film out.</dd>
+        <dt>Why</dt><dd>The Excel sheet has 1500 mm products in only 5 colours, all MEDIUM, so it never needed the other films. Two ways to fix it: add <code>PROTECTIVE FILM-ALCLAD-0.080*1510-SUPER HIGH SS10+</code> and the ALUMAX one to Materials, or decide that 1500 mm always uses MEDIUM film. You need to choose.</dd>
+      </dl>
+      <p class="where">Materials data · ALUMAX-AL4045-AL4004-FRB1-0.4-1500*2000, ALCLAD-AL4035-AL4002-NFR-0.3-1500*2450, ALCLAD-AL4035-AL4002-FRB1-0.3-1500*2000</p>
+    </article>
+    <article class="f s1">
+      <h3>4. “Undo dispatch” no longer fits the Ship flow: the same pieces can be shipped and invoiced twice</h3>
+      <dl>
+        <dt>What</dt><dd>Ship now makes the DO and the dispatch in one step. Undo (order dialog, plant role) runs the old <code>undo_dispatch</code>: it deletes the dispatch row and lowers <code>dispatched_qty</code>, but the DO batch line, any PI on it and the cleared ready pieces stay as they were. The pieces go back into the balance and can be shipped on a new DO and invoiced again.</dd>
+        <dt>Fix</dt><dd>Either remove Undo, or turn it into “Cancel DO” that also removes the batch line, refuses when a PI exists and puts the ready pieces back.</dd>
+      </dl>
+      <p class="where">app/orders/OrderDialog.js:371 · app/orders/actions.js:513 · supabase/migrate-003.sql undo_dispatch</p>
+    </article>
+  </section>
+
+  <section>
+    <h2><span class="sev s2">P2</span>Edge cases</h2>
+    <article class="f s2">
+      <h3>5. FR-A2 products get the wrong adhesive and film width or brand</h3>
+      <dl>
+        <dt>What</dt><dd>Products outside the standard (FR-A2, other thicknesses) use the formula, and its adhesive and film come from the fixed material on the core settings row. Width and brand are ignored. Real example: ALCLAD FR-A2 1500 mm gets <code>ADHESIVE 0.080*1280</code> and <code>PROTECTIVE FILM-ALUMAX-0.080*1260-HIGH</code>.</dd>
+        <dt>Fix</dt><dd>Match adhesive and film by width and brand on the formula path, the same way the standard path already does.</dd>
+      </dl>
+      <p class="where">lib/bom.js findMatchingMaterial / calcPanelBOM formula branch</p>
+    </article>
+    <article class="f s2">
+      <h3>6. Grade and Al skin are picked separately and can disagree</h3>
+      <dl>
+        <dt>What</dt><dd>A quote line picks Grade and Al Skin Thickness from separate lists. The standard BOM follows the grade (AL4045 = 0.38 mm top skin), so an item saved as <code>ALUMAX-AL4045-AL3003-FRB1-0.5</code> is costed and issued as 0.38 mm while its name says 0.5.</dd>
+        <dt>Fix</dt><dd>Fill skin from the grade on the quote form, or refuse a skin that doesn't match the grade.</dd>
+      </dl>
+      <p class="where">app/orders/new/QuoteForm.js · app/orders/actions.js parseLines</p>
+    </article>
+    <article class="f s2">
+      <h3>7. PI: a refusal from the database is ignored and the PI is written anyway</h3>
+      <dl>
+        <dt>What</dt><dd>Ship shows any error from <code>generate_batch_do</code>. PI falls back to direct table writes on any error from <code>generate_batch_pi</code>, not only when the function is missing. The batch is also not checked to belong to the order in the form.</dd>
+        <dt>Fix</dt><dd>Use the same rule as Ship, and check <code>batch.order_id</code>.</dd>
+      </dl>
+      <p class="where">app/orders/actions.js:428</p>
+    </article>
+    <article class="f s2">
+      <h3>8. Ship checks the balance outside the database lock and does not need ready pieces</h3>
+      <dl>
+        <dt>What</dt><dd>“Not more than the balance” is checked in the app before calling <code>generate_batch_do</code>, so two Ship submits at the same moment can both pass and over-ship. The function also accepts pieces that were never marked ready (ready just floors at 0).</dd>
+        <dt>Fix</dt><dd>Check <code>qty ≤ qty − dispatched_qty</code> inside the function after its <code>for update</code>. Decide whether Ship must stay within ready pieces.</dd>
+      </dl>
+      <p class="where">supabase/migrate-017.sql generate_batch_do</p>
+    </article>
+    <article class="f s2">
+      <h3>9. Two finished goods have wrong data</h3>
+      <dl>
+        <dt>What</dt><dd><code>ALCLAD-FRA2-AL9022-Mineral-…</code> has grade and core swapped (grade “FRA2”, core “Mineral”) and colour name “Pure White” for AL9022, which is American Walnut. It still costs as FR-A2, but reports group it wrongly.</dd>
+      </dl>
+      <p class="where">fg_items data</p>
+    </article>
+  </section>
+
+  <section>
+    <h2><span class="sev s3">P3</span>Cleanup</h2>
+    <article class="f s3">
+      <h3>10. About 120 lines of fallback code for databases from before migrate-004 and migrate-017</h3>
+      <dl><dt>What</dt><dd><code>markReady</code>, <code>generateBatchDO</code> and <code>generateBatchPI</code> each carry a second, non-transactional copy of the logic, plus <code>try/catch</code> around Supabase calls that never throw. The database has every migration, so this code never runs, but it would be wrong if it did.</dd></dl>
+      <p class="where">app/orders/actions.js:185–340</p>
+    </article>
+    <article class="f s3">
+      <h3>11. Master tables load their rows through a Server Action</h3>
+      <dl><dt>What</dt><dd><code>loadMasterRows</code> is the same pattern that once held up the order dialog for seconds after a deploy. A GET route, like <code>/orders/[id]/detail</code>, avoids it.</dd></dl>
+      <p class="where">app/admin/actions.js:354</p>
+    </article>
+    <article class="f s3">
+      <h3>12. Plant users can't enter shift output (DPR) or QC</h3>
+      <dl><dt>What</dt><dd>Planning, DPR, QC and FG need manager or admin. If plant staff are meant to type the shift output themselves, add <code>'plant'</code> to <code>createProduction</code> and <code>qcProduction</code>. If not, nothing to do.</dd></dl>
+      <p class="where">app/production/actions.js:39, 116</p>
+    </article>
+  </section>
+
+  <section>
+    <h2><span class="sev sok">OK</span>What passed</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Check</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Unit tests (quote maths, icons, BOM)</td><td class="n pass">18 / 18</td></tr>
+        <tr><td>Database tests (migrate-015, 017, 019, 020 in PGlite)</td><td class="n pass">all pass</td></tr>
+        <tr><td>Production build</td><td class="n pass">builds</td></tr>
+        <tr><td>BOM quantities vs Excel, every product and line</td><td class="n pass">3,040 FGs · 27,360 lines · 0 off</td></tr>
+        <tr><td>BOM material found for every line (full material list)</td><td class="n pass">3,040 / 3,040</td></tr>
+        <tr><td>Colours with a film level</td><td class="n pass">71 / 71</td></tr>
+        <tr><td>Real FG items recognised: standard or formula</td><td class="n pass">8 standard · 3 FR-A2 formula</td></tr>
+        <tr><td>Pages and downloads open signed in as admin (48 routes + order, plan, DPR, PO, GRN, issue and print views)</td><td class="n pass">no errors</td></tr>
+        <tr><td>Role check on every Server Action; sales see only their own orders; tax invoice and print pages check access</td><td class="n pass">in place</td></tr>
+        <tr><td>Approve, cancel and short close use “update … where status = …”, so a double click can't apply twice</td><td class="n pass">in place</td></tr>
+        <tr><td>DPR saves recompute the BOM on the server; the form can't send its own system quantities</td><td class="n pass">in place</td></tr>
+      </tbody>
+    </table></div>
+    <p class="sub">Not covered: clicking through a live save on every form. The database is shared with the live site, so no test orders, plans or DPRs were created. The DPR form was checked on localhost earlier today without saving.</p>
+  </section>
+</div>

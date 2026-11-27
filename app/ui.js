@@ -12,6 +12,7 @@ import { createPortal, useFormStatus } from 'react-dom'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import Link, { useLinkStatus } from 'next/link'
 import { ROLES, day, prodLabel, prodStatus, splitName, today } from '@/lib/tas'
+import { downloadPdfFromElement } from '@/lib/pdf'
 
 // Same breakpoint as the phone layout in globals.css (narrow, or a phone held sideways).
 export const PHONE = '(max-width: 768px), (max-height: 500px) and (pointer: coarse)'
@@ -115,10 +116,11 @@ const CloseCtx = createContext({ close: () => {}, request: () => {} })
 
 // FMS-style dialog on a native <dialog>: header / body / foot, closes on Esc, backdrop click or Cancel.
 // Children are the form: <form action={...}><div className="modal-body">…</div><ModalFoot …/></form>
-export function Modal({ title, icon = 'ph-info', label, btnIcon, btnClass = 'btn btn-primary btn-sm', size, children, ariaLabel, defaultOpen = false }) {
+export function Modal({ title, icon = 'ph-info', label, btnIcon, btnClass = 'btn btn-primary btn-sm', size, print, children, ariaLabel, defaultOpen = false }) {
   const ref = useRef(null)
   const tid = useId()
   const [open, setOpen] = useState(defaultOpen)
+  const [downloading, setDownloading] = useState(false)
   const dirty = useRef(false)
   useEffect(() => {
     if (!open) return
@@ -136,6 +138,20 @@ export function Modal({ title, icon = 'ph-info', label, btnIcon, btnClass = 'btn
     askConfirm('Discard what you typed?', { ok: 'Discard', danger: true }).then((y) => y && close())
   }
   useSheetDrag(ref, request)
+  const handlePdf = async () => {
+    if (typeof print === 'function') return print()
+    const docName = (typeof print === 'string' ? print : (tid ? document.getElementById(tid)?.textContent?.trim() : '') || 'document').replace(/\s+/g, ' ')
+    const ok = await askConfirm(`Do you want to download ${docName} as a PDF file?`, { ok: 'Download' })
+    if (!ok) return
+    setDownloading(true)
+    try {
+      await downloadPdfFromElement(ref.current, docName)
+    } catch (err) {
+      console.error('Failed to download PDF', err)
+    } finally {
+      setDownloading(false)
+    }
+  }
   // label can be JSX (DocView): only plain text may become an aria-label / tooltip.
   const name = ariaLabel || (typeof label === 'string' && label) || undefined
   return (
@@ -156,7 +172,21 @@ export function Modal({ title, icon = 'ph-info', label, btnIcon, btnClass = 'btn
             <div className="modal-header no-print">
               <div className="modal-ttl">
                 <i className={`ph ${icon}`} /><span id={tid} className="modal-ttl-txt">{title}</span>
-                <button type="button" className="btn-link x" onClick={request} aria-label="Close"><i className="ph ph-x" /></button>
+                <div className="modal-ttl-acts">
+                  {print && (
+                    <button
+                      type="button"
+                      className="btn-link print-btn"
+                      onClick={handlePdf}
+                      disabled={downloading}
+                      title="Download PDF"
+                      aria-label="Download PDF"
+                    >
+                      {downloading ? <span className="spin" /> : <i className="ph ph-file-arrow-down" />}
+                    </button>
+                  )}
+                  <button type="button" className="btn-link x" onClick={request} aria-label="Close"><i className="ph ph-x" /></button>
+                </div>
               </div>
             </div>
             {children}
@@ -302,9 +332,14 @@ export function Tooltips() {
       const shown = (el.innerText || '').split('\n')[0].trim().toLowerCase()
       if (shown && text.toLowerCase().startsWith(shown)) return
       cur = el
+      const dlg = el.closest('dialog[open]')
       const r = el.getBoundingClientRect()
-      const below = r.top < 48
-      setTip({ text, x: r.left + r.width / 2, y: below ? r.bottom + 8 : r.top - 8, below })
+      const dlgR = dlg ? dlg.getBoundingClientRect() : null
+      const topSpace = dlgR ? (r.top - dlgR.top) : r.top
+      const bottomSpace = dlgR ? (dlgR.bottom - r.bottom) : (innerHeight - r.bottom)
+      // When inside a modal header or close to container top edge, position below
+      const below = (topSpace < 48 || !!el.closest('.modal-header')) && bottomSpace >= 36
+      setTip({ text, x: r.left + r.width / 2, y: below ? r.bottom + 8 : r.top - 8, below, dlg })
     }
     const hide = (e) => {
       if (!cur || (e.type !== 'scroll' && e.relatedTarget && cur.contains(e.relatedTarget))) return
@@ -319,16 +354,25 @@ export function Tooltips() {
       document.removeEventListener('scroll', hide, true)
     }
   }, [])
-  // Centre on the element, but never past the window edges.
+  // Centre on the element, but never past the container or window edges.
   useLayoutEffect(() => {
     const t = tipRef.current
     if (!t || !tip) return
     const w = t.offsetWidth
-    t.style.left = `${Math.min(Math.max(tip.x - w / 2, 8), innerWidth - w - 8)}px`
-    t.style.setProperty('--arrow', `${Math.min(Math.max(tip.x - parseFloat(t.style.left), 10), w - 10)}px`)
+    const dlg = tip.dlg
+    const dlgR = dlg?.isConnected && dlg.open ? dlg.getBoundingClientRect() : null
+    const minLeft = dlgR ? Math.max(dlgR.left + 8, 8) : 8
+    const maxLeft = dlgR ? Math.min(dlgR.right - w - 8, innerWidth - w - 8) : innerWidth - w - 8
+    const left = Math.min(Math.max(tip.x - w / 2, minLeft), Math.max(minLeft, maxLeft))
+    t.style.left = `${left}px`
+    t.style.setProperty('--arrow', `${Math.min(Math.max(tip.x - left, 10), Math.max(10, w - 10))}px`)
   }, [tip])
   if (!tip) return null
-  return <div ref={tipRef} className={`tip${tip.below ? ' below' : ''}`} role="tooltip" style={{ top: tip.y }}>{tip.text}</div>
+  const tipEl = <div ref={tipRef} className={`tip${tip.below ? ' below' : ''}`} role="tooltip" style={{ top: tip.y }}>{tip.text}</div>
+  if (tip.dlg && tip.dlg.isConnected && tip.dlg.open && typeof document !== 'undefined') {
+    return createPortal(tipEl, tip.dlg)
+  }
+  return tipEl
 }
 
 // Put inside a long form: once something is typed, leaving the page (link, back, refresh, closing the tab)
@@ -399,6 +443,26 @@ export function FootMore({ children }) {
 
 // Document chip that opens the printable page in a dialog instead of a new tab.
 export function DocView({ href, icon, label, title, cls = 'chip-link' }) {
+  const [downloading, setDownloading] = useState(false)
+  const handleDownload = async (e) => {
+    const f = e.currentTarget.closest('dialog')?.querySelector('iframe')
+    const docEl = f?.contentDocument?.querySelector?.('.doc')
+    if (docEl) {
+      const docName = (title || label || 'document').replace(/\s+/g, ' ')
+      const ok = await askConfirm(`Do you want to download ${docName} as a PDF file?`, { ok: 'Download' })
+      if (!ok) return
+      setDownloading(true)
+      try {
+        await downloadPdfFromElement(docEl, docName)
+      } catch (err) {
+        console.error('Failed to download PDF', err)
+      } finally {
+        setDownloading(false)
+      }
+    } else {
+      window.open(href, '_blank')
+    }
+  }
   return (
     <Modal title={title || label} icon={icon} label={label} btnIcon={cls === 'doc-no' ? undefined : icon} btnClass={cls} size="large">
       <iframe
@@ -409,10 +473,16 @@ export function DocView({ href, icon, label, title, cls = 'chip-link' }) {
       />
       <div className="modal-foot no-print">
         <a className="btn btn-ghost" href={href} target="_blank" rel="noreferrer"><i className="ph ph-arrow-square-out" />Open in a new tab</a>
-        <button type="button" className="btn btn-primary" onClick={(e) => {
-          const f = e.currentTarget.closest('dialog').querySelector('iframe')
-          try { f.contentWindow.print() } catch { window.open(href, '_blank') }
-        }}><i className="ph ph-printer" />Print or save as PDF</button>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm btn-ic"
+          onClick={handleDownload}
+          disabled={downloading}
+          title="Download PDF"
+          aria-label="Download PDF"
+        >
+          {downloading ? <span className="spin" /> : <i className="ph ph-file-arrow-down" />}
+        </button>
       </div>
     </Modal>
   )
@@ -549,11 +619,12 @@ export function ClickRow({ href, onOpen, children }) {
 // A dialog that is its own URL (?view=…), like the FMS order profile: Esc, backdrop or Close go back to the list.
 // Opened from the list, closing steps Back (no duplicate history entry); opened from a link or after an
 // action inside it, closing replaces the URL with the list.
-export function RouteDialog({ title, icon, header, footer, closeHref, onClose, children }) {
+export function RouteDialog({ title, icon, header, footer, closeHref, onClose, print, children }) {
   const ref = useRef(null)
   const tid = useId()
   const router = useRouter()
   const [pending, start] = useTransition()
+  const [downloading, setDownloading] = useState(false)
   const back = useRef(null)
   useBusy(pending)
   useEffect(() => {
@@ -574,6 +645,20 @@ export function RouteDialog({ title, icon, header, footer, closeHref, onClose, c
   // Every way of closing ends in the dialog's close event, which updates the URL.
   const close = () => closeAnimated(ref.current)
   useSheetDrag(ref, close)
+  const handlePdf = async () => {
+    if (typeof print === 'function') return print()
+    const docName = (typeof print === 'string' ? print : (tid ? document.getElementById(tid)?.textContent?.trim() : '') || 'document').replace(/\s+/g, ' ')
+    const ok = await askConfirm(`Do you want to download ${docName} as a PDF file?`, { ok: 'Download' })
+    if (!ok) return
+    setDownloading(true)
+    try {
+      await downloadPdfFromElement(ref.current, docName)
+    } catch (err) {
+      console.error('Failed to download PDF', err)
+    } finally {
+      setDownloading(false)
+    }
+  }
   return (
     <dialog
       ref={ref}
@@ -587,14 +672,27 @@ export function RouteDialog({ title, icon, header, footer, closeHref, onClose, c
       <div className="modal-header no-print">
         <div className="modal-ttl">
           <i className={`ph ${icon}`} /><span id={tid} className="modal-ttl-txt">{title}</span>
-          <button type="button" className="btn-link x" onClick={close} aria-label="Close"><i className="ph ph-x" /></button>
+          <div className="modal-ttl-acts">
+            {print && (
+              <button
+                type="button"
+                className="btn-link print-btn"
+                onClick={handlePdf}
+                disabled={downloading}
+                title="Download PDF"
+                aria-label="Download PDF"
+              >
+                {downloading ? <span className="spin" /> : <i className="ph ph-file-arrow-down" />}
+              </button>
+            )}
+            <button type="button" className="btn-link x" onClick={close} aria-label="Close"><i className="ph ph-x" /></button>
+          </div>
         </div>
         {header}
       </div>
       <div className="modal-body">{children}</div>
       <div className="modal-foot no-print">
         {footer}
-        <button type="button" className="btn btn-ghost neutral" onClick={close}>Close</button>
       </div>
     </dialog>
   )
@@ -623,10 +721,32 @@ export function PasswordInput(props) {
   )
 }
 
-export function PrintButton({ cls = 'btn btn-primary btn-sm' } = {}) {
+export function PrintButton({ cls = 'btn btn-primary btn-sm', title = 'Download PDF', docNo } = {}) {
+  const [downloading, setDownloading] = useState(false)
+  const handleDownload = async () => {
+    const docName = (docNo || document.title || 'document').replace(/\s+/g, ' ')
+    const ok = await askConfirm(`Do you want to download ${docName} as a PDF file?`, { ok: 'Download' })
+    if (!ok) return
+    setDownloading(true)
+    try {
+      await downloadPdfFromElement(document.querySelector('.doc'), docName)
+    } catch (err) {
+      console.error('Failed to download PDF', err)
+    } finally {
+      setDownloading(false)
+    }
+  }
+  const finalCls = cls.includes('btn-ic') ? cls : `${cls} btn-ic`
   return (
-    <button type="button" className={cls} onClick={() => window.print()}>
-      <i className="ph ph-printer" />Print or save as PDF
+    <button
+      type="button"
+      className={finalCls}
+      onClick={handleDownload}
+      disabled={downloading}
+      title={title}
+      aria-label={title}
+    >
+      {downloading ? <span className="spin" /> : <i className="ph ph-file-arrow-down" />}
     </button>
   )
 }

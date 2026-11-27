@@ -36,13 +36,14 @@ export default async function PrintPage({ params, searchParams }) {
       </div>
     )
   }
+  const no = doc === 'quote' ? o.quote_no : (doc === 'do' ? batch?.do_no : batch?.pi_no) || o.doc_no || o.quote_no
   return (
     <>
       <div className="page-head no-print">
         <Link prefetch={false} href={`/orders?view=${o.id}`} className="btn btn-ghost btn-sm"><i className="ph ph-arrow-left" />Back to {o.quote_no}</Link>
         <div className="acts">
-          <span className="muted text-sm print-hint">Choose “Save as PDF” as the printer to get a PDF file.</span>
-          <PrintButton />
+          <span className="muted text-sm print-hint">Download this document directly as a PDF file.</span>
+          <PrintButton docNo={no} />
         </div>
       </div>
       <div className="doc-scroll"><Doc doc={doc} o={o} batch={batch} s={await getSettings()} /></div>

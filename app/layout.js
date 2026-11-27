@@ -8,6 +8,8 @@ if (process.env.NODE_ENV === 'development') {
 
 import './globals.css'
 import './icons/phosphor.css' // only the icons in use: npm run icons
+import { GeistSans } from 'geist/font/sans'
+import { GeistMono } from 'geist/font/mono'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { MY_WORK, authClient, currentUser, myWorkIds, openLineCount, orderCounts, sessionUserId } from '@/lib/server'
@@ -16,7 +18,7 @@ import { WARN, getUsage } from '@/lib/usage'
 import { invTodo } from '@/lib/todo'
 import Shell from './Shell'
 
-// Each page sets its own name; the tab reads "Production Floor · TAS OMS".
+// Each page sets its own name; the tab reads "Production Floor · TAS OS".
 // viewport-fit=cover: the phone bottom tab bar pads itself for the home indicator (safe-area-inset-bottom).
 export const viewport = {
   viewportFit: 'cover',
@@ -24,9 +26,9 @@ export const viewport = {
 }
 
 export const metadata = {
-  title: { default: 'TAS OMS', template: '%s · TAS OMS' },
+  title: { default: 'TAS OS', template: '%s · TAS OS' },
   // iPhone "Add to Home Screen": open full screen with the app's name under the icon.
-  appleWebApp: { capable: true, title: 'TAS OMS', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'TAS OS', statusBarStyle: 'default' },
 }
 
 // Runs before first paint so a saved dark theme / sidebar choice never flashes; ?embed=1 (document viewer)
@@ -118,7 +120,7 @@ export default async function RootLayout({ children }) {
   // Admins see a warning on every page once any free-plan limit passes 80% (checked hourly).
   const near = me?.role === 'admin' ? usage?.filter((u) => u.share >= WARN) : null
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <head>
         {/* Plain blocking script on purpose: it must set the theme before first paint (next/script only preloads) */}
         <script id="theme-init" src="/theme-init.js" />

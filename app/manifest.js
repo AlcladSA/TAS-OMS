@@ -1,9 +1,9 @@
 // "Add to Home Screen" / "Install app": opens full screen on Orders, like a normal app.
 export default function manifest() {
   return {
-    name: 'TAS OMS',
-    short_name: 'TAS OMS',
-    description: 'TAS International order management',
+    name: 'TAS OS',
+    short_name: 'TAS OS',
+    description: 'TAS International Operations & Manufacturing System',
     start_url: '/orders',
     display: 'standalone',
     background_color: '#F2F2F7',

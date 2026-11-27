@@ -16,7 +16,7 @@ export default function DprDialog({ dpr, used, s, closeHref }) {
 
   const footer = (
     <>
-      <PrintButton cls="btn btn-ghost" label="Print / Save PDF" />
+      
       {open > 0 && (
         <Link prefetch={false} href="/production/qc" className="btn btn-primary">
           <i className="ph ph-seal-check" />Check these pieces
@@ -27,14 +27,12 @@ export default function DprDialog({ dpr, used, s, closeHref }) {
           <i className="ph ph-calendar-check" />View {dpr.plan.plan_no}
         </Link>
       )}
-      <Link prefetch={false} href={closeHref} className="btn btn-ghost">
-        Close
-      </Link>
     </>
   )
 
   return (
     <RouteDialog
+      print={dpr.dpr_no}
       key={dpr.id}
       icon="ph-factory"
       title={

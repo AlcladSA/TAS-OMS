@@ -909,3 +909,96 @@ Audit: FLOW-AUDIT-2026-10-31.html (https://claude.ai/artifact/1WfXyPwRY923p3dcQK
 - **Plan auto-issue read only 1,000 of 2,203 materials** (plain select). Now uses `invMasters()`; and it refuses, naming the layers, when any BOM line has no material instead of issuing part of the plan.
 - **1510 mm SUPER HIGH SS10+ film missing** for both brands: `supabase/migrate-021.sql` adds them, copied from the 1510 mm HIGH rows (run in the SQL Editor; set the cost after).
 - **Undo dispatch removed** (order dialog + `undoDispatch` action). With Ship = DO + dispatch it took pieces back into the balance but left the DO line and PI, so they could ship and invoice twice. `undo_dispatch()` stays in the database, unused.
+
+## 56. Collapsible tables, PDF download, and item format standard (1 Nov 2026)
+- **Collapsible master-detail tables**: Added collapsible inline item sub-tables to Orders (`OrdersView.js`), Purchase Orders (`POTable.js`), Goods Received (`GRNTable.js`), and Warehouse Issues (`IssuesTable.js`). Embedded caret expanders inside the first reference column with flex layout to prevent header and ID overlap.
+- **Direct PDF download**: Replaced direct browser printing with native client-side PDF downloads (`html2pdf.js` / canvas rasterization) via `PrintButton` with confirmation prompt, saving documents cleanly with their reference number as filename.
+- **Modal cleanup**: Removed redundant bottom "Close" buttons from dialog modals across the app that already feature a corner 'X' close button.
+- **Enhanced Orders CSV export**: Flattened CSV export (`/admin/export/orders`) into item-wise rows (multi-item orders get individual rows), added separate columns for Quotation Qty, DO Qty, PI Qty, Quotation Price, and PI Price.
+- **Item description standardization**: Standardized item descriptions across the app and database to `{brand}-{grade}-{color_code}-{core}-{width}*{length}*{thickness} mm {color_name}` (e.g. `ALUMAX-AL4025-AL4001-NFR-1250*3600*4 mm Industrial Ash`). Updated `describe(l)` in `lib/tas.js`, included `core` in queries across Orders, Plant, and CSV Export routes, passed full attributes in Quote creation, updated all existing `order_items` rows in Supabase, and updated unit test suites.
+- **Area & per-piece labeling correction**: Fixed sub-label on order items which previously labeled total line area as `/ pc` (e.g., `306.25 m² / pc` for 100 panels of 1250x2450mm). Updated to clearly show `306.25 m² total · 3.06 m² / pc`.
+- **Page help for Orders**: Added "How this page works" workflow guide to the Orders page (`PageHelp.js` and `app/orders/page.js`), matching Purchasing and Production pages.
+- **Order dialog secondary actions**: Removed the 3-dots "More" menu and transformed secondary footer actions (Duplicate, Edit, Cancel, Short close, Delete) into standalone, icon-only buttons with tooltips and dedicated color tints.
+- **Modal dialog PDF action button styling**: Styled `.modal-ttl-acts .print-btn` in modal and route dialog headers (Purchase Orders, GRN, Issue vouchers, Production DPR, Plans) with a dedicated red accent tint (#dc2626), border, hover animations, and dark mode support matching the action button aesthetic and PDF document conventions.
+- **Top layer modal tooltip portal & positioning fix**: Fixed tooltips for dialog header buttons appearing behind / below the native `<dialog>` box. In `app/ui.js`, `<Tooltips>` now portals directly into the open `<dialog>` (ensuring it stays in the browser's top layer stacking context), detects container top boundaries, and correctly positions the tooltip directly below header buttons (`.tip.below`) with an upward-pointing indicator arrow instead of getting clipped outside the modal.
+- **Reports unified header toolbar**: Merged the sales report sub-navigation tabs (`reports-subnav`) with the date range picker and export dropdown into a single horizontal toolbar row (`.reports-bar`). Removed the redundant stacked card row below the tabs, aligning `DateRange` and `Export` to the right of the tabs bar on desktop and wrapping cleanly on mobile.
+
+## 57. Master Data import & BOM engine synchronization (2 Nov 2026)
+- **Raw Materials safe upsert**: Parsed and classified 2,204 valid materials from the uploaded master dataset (`Item_data.xlsx`) into granules, FRA2 cores, adhesive films, protective films, top coils, and bottom coils. Applied safe upsert against Supabase `materials` table, updating 890 existing records in-place (preserving foreign key links across 281 stock moves, 9 GRN items, and core settings) and inserting 1,316 new materials.
+- **Finished Goods catalog & database synchronization**: Updated `lib/fg-catalog.json` with the full 3,800 standard finished goods panels with their 10-digit ERP SKUs, barcodes, and sale prices. Seeded all 3,800 items into the Supabase `fg_items` table matching the standardized description format `{brand}-{grade}-{color_code}-{core}-{width}*{length}*{thickness} mm {color_name}`.
+- **BOM engine FRA2 coil thickness & masking film rule**:
+  - In `lib/bom.js`, resolved `stockCoilThick` from `STD_GRADES` (0.35 mm for AL4045-FRA2, 0.45 mm for AL4050-FRA2) to match actual stock coil gauges, eliminating previous BOM coil failures.
+  - Retained the two 1510 mm SUPER HIGH SS10+ protective films (ALCLAD and ALUMAX) so 1500 mm panels with high-end finishes achieve complete BOM layer matching.
+  - Refactored masking film criteria matching in `findMatchingMaterial` to inspect `mat_type` and code prefixes/suffixes independently of SKU name annotations.
+  - Verified across all 3,813 database finished goods: **3,813 / 3,813 (100%) layer match rate with 0 BOM failures**.
+- **Dual-code SKU searchability**: Kept human-readable technical specification codes as primary identifiers for factory operations, while embedding the ERP SKU numbers (`[SKU: ...]`) into descriptions, allowing search inputs across the application to instantly find materials and panels by either ERP number, color name, or dimension.
+- **Label deduplication safeguard**: Updated `fgLabel(f)` in `lib/production.js` to guard against duplicating color names when item codes already contain the color name.
+
+## 58. Clean Raw Materials wipe and reload from Excel (2 Nov 2026)
+- **Complete Raw Material wipe & fresh reload**: Fully wiped all previously generated/seeded materials from Supabase and reloaded fresh directly from `Item_data.xlsx`.
+- **Real ERP Codes & Names applied**:
+  - `CODE` = The real 10-digit ERP SKU from Excel (e.g. `1000030446`).
+  - `NAME` = The real Item Name from Excel (e.g. `AL4001-SDPE-0.18*1270-Industrial Ash`).
+  - Completely purged all old synthetic names (e.g., `Industrial Ash Coil (0.18*1270)`).
+  - Exact count in DB: 2,206 clean materials (2,204 from Excel + 2 retained 1510 mm SS10+ protective films).
+- **Transaction re-linking**: Safely remapped and preserved all child records (`po_items`, `grn_items`, `transfer_items`, `production_consumptions`, `stock_moves`, and `core_settings`) to the fresh material IDs without breaking referential integrity.
+- **BOM verification**: Re-verified BOM engine across all 3,813 finished goods with the fresh materials dataset — **100% layer match rate (3,813 / 3,813) with 0 failures**.
+
+## 59. Standard BOM verification against All_Finished_Goods_BOM.xlsx (2 Nov 2026)
+- **BOM Excel ingestion & structure audit**: Parsed and audited `All_Finished_Goods_BOM.xlsx` (`BOM` and `STANDARD BOM` sheets):
+  - `STANDARD BOM` defines baseline consumption rates per 1 SQM for all 8 standard grades (`AL4050N`, `AL4050`, `AL4045N`, `AL4045`, `AL4035N`, `AL4035`, `AL4025N`, `AL4025`) across `NFR` and `FRB1` core formulations, plus engineering parameters for 1500 mm coil scaling (`(1520/1500)/(1270/1250)`), AL4045 0.35 mm stock coil substitution, and protective film grade mapping.
+  - `BOM` sheet contains 27,360 rows covering 3,040 standard finished goods panels across ALCLAD and ALUMAX brands, 1250 mm and 1500 mm widths, and standard lengths from 2440 mm to 6000 mm.
+- **Automated formula & consumption comparison**:
+  - Ran automated validation comparing all 27,360 component rows in `All_Finished_Goods_BOM.xlsx` against the `lib/bom.js` BOM calculation engine.
+  - **Result: 0 quantity mismatches across all 3,040 FG panels**.
+  - Verified exact parity for Top Coils, Bottom Coils (Window Grey), Core Granule A (`LDPE RECYCLED GRANULE-A` / `FR3 GRANULES (FRB1)-FRB1`), Core Granule B (`LDPE RECYCLED GRANULE-B` / `CALCIUM COMPOUND FILLER-CaCO3`), Adhesive Film (`0.1034 kg/m²`), Protective Film (`1.016 m²/m²` for 1250 mm, `1510/1500 m²/m²` for 1500 mm), and negative waste scrap outputs (Plastic waste, Aluminium side trim, and Aluminium process waste `-0.005 kg/m²`).
+- **Raw Material ERP code cross-check**:
+  - Cross-referenced all 331 distinct raw material SKUs from the BOM sheet against the live Supabase `materials` table.
+  - **Result: 0 missing material codes**. 100% of the 328 physical raw material codes (10-digit ERP SKUs) exist in the database with their authentic item names.
+  - Verified the 3 waste lines (`PLASTIC WASTE DURING PRODUCTION LDPE`, `SIDE TRIMMED ALUMINIUM`, `PROCESS WASTE ALUMINIUM`) are correctly excluded from stock issue requirements.
+- **End-to-End System Health**:
+  - Full catalog BOM validation on all 3,813 database finished goods (`verify-db-bom.mjs`): **3,813 / 3,813 (100%) layer match rate with 0 BOM failures**.
+  - All 18 unit tests passing (`lib/tas.test.mjs`, `lib/bom.test.mjs`, `lib/icons.test.mjs`).
+  - Production build compiled cleanly with Next.js Turbopack in 998ms.
+
+## 60. Modern Typography upgrade to Geist & Geist Mono (2 Nov 2026)
+- **Typography modernization**: Replaced the default Windows system font stack (Segoe UI) with **Geist** (`GeistSans`) and **Geist Mono** (`GeistMono`) via the official `geist` package.
+- **Hierarchical font application**:
+  - `Geist Sans` (`--font-geist-sans`): Applied to all core UI chrome, navigation items, page titles, table headers, form inputs, and status badges.
+  - `Geist Mono` (`--font-geist-mono`): Applied to all technical data fields, document reference numbers (`PO-2026-003`, `Q-2026-001`), 10-digit ERP SKUs (`1000032662`), quantities, weights (`KG`, `M2`), dates, and financial figures (`SAR 439,500.00`).
+- **Tabular figures & font smoothing**: Enforced `font-variant-numeric: tabular-nums` and `font-feature-settings: "tnum" 1` across numeric columns and `.font-mono` utilities, ensuring currency decimals and quantity columns remain vertically aligned across tables.
+- **Zero layout shift & offline bundling**: Self-hosted directly inside the Next.js bundle via `geist/font/sans` and `geist/font/mono`, eliminating external Google Font CDN latency and external network dependencies.
+- **Verification**: Tested live on `/inventory/po`, `/orders`, and `/production`. Next.js Turbopack production build succeeded in 1350ms, all 18 unit tests passed cleanly.
+
+## 61. Google Drive PDF auto-archival & Monthly Orders CSV sync (2 Nov 2026)
+- **Automatic Document PDF Archival**:
+  - Enhanced `lib/drive.js` with `archiveDocumentPdf(docNo, fileName, buffer)` and `findOrCreateSubFolder(folderName)`.
+  - Automatically routes generated document PDFs by prefix to designated subfolders inside the root Google Drive folder (`Aluclad` / `1xG-vG5F52iLyJNPXdfQ0YbfqwUJmTAS2`):
+    - `Purchase Orders` (`PO-...`)
+    - `Quotations` (`Q-...`)
+    - `Delivery Orders` (`DO-...`)
+    - `Proforma Invoices` (`PI-...`)
+    - `Goods Received` (`GRN-...`)
+    - `Warehouse Issues` (`ISS-...`)
+    - `Production DPR` (`DPR-...`)
+  - Prevents duplicate clutter: uses `uploadOrUpdateFile` with Google Drive `PATCH` to update existing documents in-place when re-downloaded.
+  - Background async integration: updated `downloadPdfFromElement` in `lib/pdf.js` to dispatch generated PDF blobs to `/api/drive/archive-pdf` automatically whenever users download any document.
+- **Monthly Orders CSV Sync**:
+  - Implemented `syncMonthlyOrdersCsvToDrive(yearMonth)` in `lib/drive.js` and route `/api/drive/sync-orders`.
+  - Queries all orders within the month with items, color names, dimensions, delivery quantities, proforma amounts, VAT, transport, and batch numbers.
+  - Generates detailed UTF-8 BOM CSV and uploads/updates `Monthly Exports/Orders_YYYY-MM.csv` in Google Drive.
+  - Added `DriveSyncButton` component to the Orders page header and the Reports Export menu for one-click manual sync with live spinning/check feedback.
+- **Live Verification**:
+  - Successfully auto-archived `PO-2026-003.pdf` (351,147 bytes) into `Aluclad / Purchase Orders /`.
+  - Successfully generated and synced `Orders_2026-11.csv` (612 bytes) into `Aluclad / Monthly Exports /`.
+  - Production build compiled cleanly with Next.js Turbopack, all 18 unit tests passing.
+
+## 62. System Rebranding to TAS OS (2 Nov 2026)
+- **Application Rebranding**: Formally renamed the system from **TAS OMS** (Order Management System) to **TAS OS** (*Operations System*), recognizing that the platform now encompasses factory-wide operations: Engineering BOM engine, Raw Material & Finished Goods stock ledger, Shift Production DPRs, Logistics Dispatch, and Cloud Archiving.
+- **Surface updates**:
+  - Sidebar brand name (`.sb-name` in `app/Shell.js`) updated to **TAS OS**.
+  - Document & browser tab title templates updated to `%s · TAS OS` in `app/layout.js`, `app/admin/layout.js`, and `app/admin/reports/layout.js`.
+  - Sign-in screen brand header in `app/login/page.js` updated to **TAS OS**.
+  - PWA Web App Manifest (`app/manifest.js`) name and short_name updated to **TAS OS**, description updated to *TAS International Operations & Manufacturing System*.
+  - Offline fallback page (`public/offline.html`) updated to **TAS OS**.
+- **Verification**: Next.js production build succeeded in 1389ms, all 18 unit tests passing. Committed to git.

@@ -5,6 +5,7 @@ import { SHIFTS, prodMissing } from '@/lib/production'
 import { day, money, qty, today } from '@/lib/tas'
 import { DateRange, IntentLink, LinkBusy } from '../../ui'
 import ProdTabs from '../ProdTabs'
+import DailyConsumptionTable from './DailyConsumptionTable'
 
 export const metadata = { title: 'Production Reports & Variance' }
 const isDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '')
@@ -23,7 +24,7 @@ export default async function Reports({ searchParams }) {
     fetchAll(() =>
       db()
         .from('production_items')
-        .select('good_qty, rejected_qty, qc_pass, qc_b, qc_reject, f:fg_items(m2_per_pc), productions!inner(prod_date, shift, line_store_id)')
+        .select('good_qty, rejected_qty, qc_pass, qc_b, qc_reject, f:fg_items(m2_per_pc), productions!inner(id, prod_date, shift, dpr_no, line_store_id, line:stores(id, name, plant_code))')
         .gte('productions.prod_date', from)
         .lte('productions.prod_date', to)
     ).catch(() => []),
@@ -38,11 +39,10 @@ export default async function Reports({ searchParams }) {
     db().rpc('stock_summary', { p_from: to, p_to: to, p_plant: null, p_store: null }),
     db()
       .from('production_consumptions')
-      .select('*, p:productions!inner(id, prod_date, shift, dpr_no, by_name, line:stores(id, name, plant_code)), m:materials(id, code, name, uom, cost_price), sm:materials!suggested_mat_id(id, code, name)')
+      .select('*, p:productions!inner(id, prod_date, shift, dpr_no, by_name, line:stores(id, name, plant_code)), m:materials!material_id(id, code, name, uom, cost_price), sm:materials!suggested_mat_id(id, code, name)')
       .gte('p.prod_date', from)
       .lte('p.prod_date', to)
       .order('id', { ascending: false })
-      // Query builders are thenables without .catch()
       .then((r) => r, () => ({ data: [] })),
   ])
 
@@ -91,6 +91,123 @@ export default async function Reports({ searchParams }) {
   }, 0)
   const overThresholdCount = varianceList.filter((v) => Math.abs(Number(v.diff_pct || 0)) > 5.0).length
 
+  // 4. Day-wise consumption aggregation
+  const dailyMap = {}
+
+  // A. Output per day
+  for (const it of items) {
+    const d = it.productions?.prod_date
+    if (!d) continue
+    const dayObj = (dailyMap[d] ??= {
+      date: d,
+      dprs: new Set(),
+      lines: new Set(),
+      shifts: new Set(),
+      goodPcs: 0,
+      goodM2: 0,
+      rejPcs: 0,
+      topCoilKg: 0,
+      bottomCoilKg: 0,
+      coreKg: 0,
+      adhesiveKg: 0,
+      filmM2: 0,
+      totalKg: 0,
+      totalSar: 0,
+      materials: [],
+    })
+    if (it.productions.dpr_no) dayObj.dprs.add(it.productions.dpr_no)
+    if (it.productions.shift) dayObj.shifts.add(it.productions.shift)
+    if (it.productions.line) dayObj.lines.add(storeLabel(it.productions.line))
+    const gQty = Number(it.good_qty || 0)
+    dayObj.goodPcs += gQty
+    dayObj.goodM2 += gQty * Number(it.f?.m2_per_pc || 0)
+    dayObj.rejPcs += Number(it.rejected_qty || 0)
+  }
+
+  // B. Raw material consumption per day
+  for (const c of varianceList) {
+    const d = c.p?.prod_date
+    if (!d) continue
+    const dayObj = (dailyMap[d] ??= {
+      date: d,
+      dprs: new Set(),
+      lines: new Set(),
+      shifts: new Set(),
+      goodPcs: 0,
+      goodM2: 0,
+      rejPcs: 0,
+      topCoilKg: 0,
+      bottomCoilKg: 0,
+      coreKg: 0,
+      adhesiveKg: 0,
+      filmM2: 0,
+      totalKg: 0,
+      totalSar: 0,
+      materials: [],
+    })
+    if (c.p.dpr_no) dayObj.dprs.add(c.p.dpr_no)
+    if (c.p.shift) dayObj.shifts.add(c.p.shift)
+    if (c.p.line) dayObj.lines.add(storeLabel(c.p.line))
+
+    const qtyVal = Number(c.actual_qty || 0)
+    const cost = Number(c.m?.cost_price || 0)
+    const sar = qtyVal * cost
+
+    if (c.layer_type === 'TOP_COIL') dayObj.topCoilKg += qtyVal
+    else if (c.layer_type === 'BOTTOM_COIL') dayObj.bottomCoilKg += qtyVal
+    else if (c.layer_type === 'CORE') dayObj.coreKg += qtyVal
+    else if (c.layer_type === 'ADHESIVE_FILM') dayObj.adhesiveKg += qtyVal
+    else if (c.layer_type === 'MASKING_FILM') dayObj.filmM2 += qtyVal
+
+    if (c.uom === 'KG') {
+      dayObj.totalKg += qtyVal
+    }
+    dayObj.totalSar += sar
+
+    dayObj.materials.push({
+      id: c.id,
+      layer_type: c.layer_type,
+      name: c.m?.name || `Material #${c.material_id}`,
+      code: c.m?.code || '',
+      uom: c.uom,
+      system_qty: Number(c.system_qty || 0),
+      actual_qty: qtyVal,
+      diff_qty: Number(c.diff_qty || 0),
+      diff_pct: Number(c.diff_pct || 0),
+      cost_price: cost,
+      sar_val: sar,
+      dpr_no: c.p.dpr_no,
+      shift: c.p.shift,
+      line: storeLabel(c.p.line),
+    })
+  }
+
+  const dailyConsumption = Object.values(dailyMap)
+    .map((d) => ({
+      ...d,
+      dprs: Array.from(d.dprs),
+      lines: Array.from(d.lines),
+      shifts: Array.from(d.shifts),
+      kgPerM2: d.goodM2 > 0 && d.totalKg > 0 ? d.totalKg / d.goodM2 : 0,
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date))
+
+  const consumptionTotals = {
+    totalKg: dailyConsumption.reduce((s, d) => s + d.totalKg, 0),
+    topCoilKg: dailyConsumption.reduce((s, d) => s + d.topCoilKg, 0),
+    bottomCoilKg: dailyConsumption.reduce((s, d) => s + d.bottomCoilKg, 0),
+    coreKg: dailyConsumption.reduce((s, d) => s + d.coreKg, 0),
+    adhesiveKg: dailyConsumption.reduce((s, d) => s + d.adhesiveKg, 0),
+    filmM2: dailyConsumption.reduce((s, d) => s + d.filmM2, 0),
+    goodM2: dailyConsumption.reduce((s, d) => s + d.goodM2, 0),
+    goodPcs: dailyConsumption.reduce((s, d) => s + d.goodPcs, 0),
+    totalSar: dailyConsumption.reduce((s, d) => s + d.totalSar, 0),
+    avgKgPerM2:
+      dailyConsumption.reduce((s, d) => s + d.goodM2, 0) > 0
+        ? dailyConsumption.reduce((s, d) => s + d.totalKg, 0) / dailyConsumption.reduce((s, d) => s + d.goodM2, 0)
+        : 0,
+  }
+
   const baseHref = (p) => {
     const q = new URLSearchParams()
     if (p.tab) q.set('tab', p.tab)
@@ -111,6 +228,12 @@ export default async function Reports({ searchParams }) {
               <LinkBusy />
               <i className="ph ph-chart-bar" />
               <span>Output &amp; Yield</span>
+            </IntentLink>
+
+            <IntentLink href={baseHref({ tab: 'consumption' })} className={`tab${subview === 'consumption' ? ' on' : ''}`}>
+              <LinkBusy />
+              <i className="ph ph-calendar" />
+              <span>Day-wise Consumption</span>
             </IntentLink>
 
             <IntentLink href={baseHref({ tab: 'variance' })} className={`tab${subview === 'variance' ? ' on' : ''}`}>
@@ -189,7 +312,17 @@ export default async function Reports({ searchParams }) {
         </>
       )}
 
-      {/* ── VIEW 2: Material Consumption Variance (BOM vs Actual) ── */}
+      {/* ── VIEW 2: Day-wise Consumption (NEW) ── */}
+      {subview === 'consumption' && (
+        <DailyConsumptionTable
+          days={dailyConsumption}
+          totals={consumptionTotals}
+          from={from}
+          to={to}
+        />
+      )}
+
+      {/* ── VIEW 3: Material Consumption Variance (BOM vs Actual) ── */}
       {subview === 'variance' && (
         <>
           <div className="stats">

@@ -1,0 +1,393 @@
+<title>TAS OMS UI Audit, October 2026</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; score strip, re-check table, then findings grouped by area, then role notes. */
+:root {
+  --bg: #F4F5F6; --panel: #FFFFFF; --ink: #17191C; --sub: #50565E; --line: #DADDE1;
+  --steel: #2C5D8A;
+  --p0: #B3261E; --p0-bg: #FBE9E7;
+  --p1: #A04A00; --p1-bg: #FCEFE3;
+  --p2: #5F5A00; --p2-bg: #F5F3DC;
+  --p3: #4A5560; --p3-bg: #ECEFF2;
+  --ok: #1D6B3A; --ok-bg: #E4F2E8;
+  --new: #5B3FA0; --new-bg: #EEE9F8;
+  --f-body: "IBM Plex Sans", system-ui, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111315; --panel: #1A1D20; --ink: #ECEEF0; --sub: #A3AAB2; --line: #2E3338; --steel: #7FB0DD;
+  --p0: #FF8A80; --p0-bg: #3A1B19; --p1: #FFB870; --p1-bg: #3A2814; --p2: #E3DA6B; --p2-bg: #302E12; --p3: #B5BEC7; --p3-bg: #262B30;
+  --ok: #7BD69B; --ok-bg: #16301F; --new: #C7B3FF; --new-bg: #2A2340; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #111315; --panel: #1A1D20; --ink: #ECEEF0; --sub: #A3AAB2; --line: #2E3338; --steel: #7FB0DD;
+  --p0: #FF8A80; --p0-bg: #3A1B19; --p1: #FFB870; --p1-bg: #3A2814; --p2: #E3DA6B; --p2-bg: #302E12; --p3: #B5BEC7; --p3-bg: #262B30;
+  --ok: #7BD69B; --ok-bg: #16301F; --new: #C7B3FF; --new-bg: #2A2340; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.6 var(--f-body); margin: 0; }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1 { font-size: 2rem; line-height: 1.15; margin: 0 0 8px; letter-spacing: -0.02em; text-wrap: balance; }
+h2 { font-size: 1.25rem; margin: 48px 0 12px; letter-spacing: -0.01em; text-wrap: balance; }
+h3 { font-size: 1rem; margin: 0; }
+p { margin: 0 0 12px; max-width: 70ch; }
+.meta { color: var(--sub); font-size: 0.875rem; }
+code { font-family: var(--f-mono); font-size: 0.84em; background: var(--p3-bg); padding: 1px 5px; border-radius: 4px; }
+.eyebrow { font: 500 0.75rem var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--steel); margin-bottom: 6px; }
+
+.scores { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin: 24px 0 8px; }
+.score { background: var(--panel); padding: 14px 16px; }
+.score b { display: block; font: 600 1.6rem/1.1 var(--f-mono); font-variant-numeric: tabular-nums; }
+.score s { color: var(--sub); font: 400 0.8rem var(--f-mono); margin-left: 6px; }
+.score span { font-size: 0.8125rem; color: var(--sub); }
+.score.total b { color: var(--steel); }
+
+.counts { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 500 0.75rem var(--f-mono); padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.p0 { background: var(--p0-bg); color: var(--p0); } .pill.p1 { background: var(--p1-bg); color: var(--p1); }
+.pill.p2 { background: var(--p2-bg); color: var(--p2); } .pill.p3 { background: var(--p3-bg); color: var(--p3); }
+.pill.ok { background: var(--ok-bg); color: var(--ok); } .pill.new { background: var(--new-bg); color: var(--new); }
+.pill.dev { background: var(--p3-bg); color: var(--sub); }
+
+.top { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; counter-reset: t; }
+.top li { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 14px 52px; position: relative; counter-increment: t; }
+.top li::before { content: counter(t); position: absolute; left: 16px; top: 13px; font: 600 1rem var(--f-mono); color: var(--steel); }
+
+.area { margin-top: 40px; }
+.area > h2 { margin-top: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.area > h2 small { font: 400 0.8125rem var(--f-body); color: var(--sub); }
+.f { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+.f header { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin-bottom: 6px; }
+.f p { font-size: 0.9375rem; margin-bottom: 6px; }
+.f .fix::before { content: "Fix applied: "; font-weight: 600; color: var(--ok); }
+.up { color: var(--ok); font-weight: 600; }
+.was { color: var(--sub); }
+.f .where { font: 0.78rem var(--f-mono); color: var(--sub); overflow-wrap: anywhere; }
+
+.tw { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 0.72rem var(--f-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--sub); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.n { font-family: var(--f-mono); white-space: nowrap; }
+
+.roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+.role { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.role h3 { margin-bottom: 6px; }
+.role ul { margin: 0; padding-left: 18px; font-size: 0.9rem; }
+.role li { margin-bottom: 4px; }
+
+.good { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.good li { background: var(--ok-bg); border-radius: 8px; padding: 10px 14px; font-size: 0.9rem; }
+.good li b { color: var(--ok); }
+ol.plan { padding-left: 22px; margin: 0; } ol.plan li { margin-bottom: 8px; }
+:focus-visible { outline: 2px solid var(--steel); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">Re-audit · 31 Oct 2026</div>
+  <h1>TAS OMS UI Audit</h1>
+  <p class="meta">The app was audited twice: first with Impeccable, then a deeper desktop-and-phone pass with UI/UX Pro Max rules. All 41 findings were then fixed, and every page was audited again in light and dark at four widths. The fixes are in commit 6a18e51, live on alclad-oms.vercel.app since 31 Oct 2026 (productlog §50–52). The checks ran as Admin on localhost:3000 against the same database, without saving anything.</p>
+
+  <div class="scores" role="list">
+    <div class="score" role="listitem"><b>3/4<s>was 2</s></b><span>Accessibility</span></div>
+    <div class="score" role="listitem"><b>3/4<s>was 3</s></b><span>Performance</span></div>
+    <div class="score" role="listitem"><b>4/4<s>was 2</s></b><span>Responsive</span></div>
+    <div class="score" role="listitem"><b>3/4<s>was 2</s></b><span>Theming</span></div>
+    <div class="score" role="listitem"><b>3/4<s>was 1</s></b><span>Implementation integrity</span></div>
+    <div class="score total" role="listitem"><b>16/20<s>was 10</s></b><span>Good</span></div>
+  </div>
+  <div class="counts"><span class="pill ok">41 of 41 findings fixed</span><span class="pill ok">0 contrast issues, light and dark</span><span class="pill ok">0 overflow at 1440 / 1024 / 768 / 375 px</span><span class="pill ok">Live</span></div>
+
+  <h2>Before and after</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Measure</th><th>First audit</th><th>Second pass</th><th>Now</th><th>Why it moved</th></tr></thead>
+    <tbody>
+      <tr><td>Accessibility</td><td class="n was">2/4</td><td class="n was">2/4</td><td class="n up">3/4</td><td>Solid 2 px focus ring everywhere. Every text passes WCAG AA in both themes. Icon-only tabs and buttons have words. App confirm dialogs focus Cancel first.</td></tr>
+      <tr><td>Performance</td><td class="n was">3/4</td><td class="n was">3/4</td><td class="n">3/4</td><td>The page slide-in on every click is gone and there's no more <code>transition: all</code>. Load times were not re-measured.</td></tr>
+      <tr><td>Responsive</td><td class="n was">3/4</td><td class="n was">2/4</td><td class="n up">4/4</td><td>Nothing runs past the screen, and no table scrolls sideways at 1440, 1024, 768 or 375 px. Phone toolbars wrap, New quotation floats, and dialog buttons sit in the footer.</td></tr>
+      <tr><td>Theming</td><td class="n was">2/4</td><td class="n was">2/4</td><td class="n up">3/4</td><td>All colour variables are defined, there are <code>--link</code> and <code>--ring</code> tokens, and both themes pass. 196 data-driven inline styles remain.</td></tr>
+      <tr><td>Implementation integrity</td><td class="n was">2/4</td><td class="n was">1/4</td><td class="n up">3/4</td><td>The Production report no longer crashes. Shared parts (menus, confirm, period picker, names, help) replace page-by-page copies. The design checker finds 0 problems.</td></tr>
+      <tr><td><b>Audit total</b></td><td class="n was">12/20</td><td class="n was">10/20</td><td class="n up"><b>16/20</b></td><td>From "Acceptable" to "Good".</td></tr>
+      <tr><td><b>Usability heuristics</b></td><td class="n was">24/40</td><td class="n was">23/40</td><td class="n up"><b>32/40</b></td><td>Consistency 1 → 3 and recognition 1 → 3 (one name per area, labelled actions). Error prevention 3 → 4 and real-world match 3 → 4. Efficiency, minimalism and error recovery 2 → 3.</td></tr>
+      <tr><td>Open findings</td><td class="n was">26</td><td class="n was">41</td><td class="n up">0</td><td>The second pass found 15 more, including the crash. All 41 are fixed.</td></tr>
+      <tr><td>Contrast failures (all pages)</td><td class="n was">not measured</td><td class="n was">not measured</td><td class="n up">0 light · 0 dark</td><td>Muted grey darkened in light mode. Red taken off links, totals, roles and the progress step.</td></tr>
+      <tr><td>Font sizes in CSS</td><td class="n was">21</td><td class="n was">21</td><td class="n up">10, none under 12 px</td><td>One scale, 14 px body text, no 800 weight.</td></tr>
+      <tr><td>Inline styles</td><td class="n was">466</td><td class="n was">466</td><td class="n up">196</td><td>The rest are values that come from data or state.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Re-audit after the fixes: light and dark</h2>
+  <p>After the 41 fixes, every page was checked again in both themes. A script opened all 31 pages at 1440, 1024, 768 and 375 px wide and checked four things: text contrast (WCAG AA), text smaller than 12 px, content running past the screen edge, and tables that scroll sideways. The main pages were also reviewed by screenshot in light mode.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Width</th><th>Light</th><th>Dark</th><th>What was fixed in this round</th></tr></thead>
+    <tbody>
+      <tr><td class="n">1440</td><td>0 issues</td><td>0 issues</td><td>Grey sub-text on tiles was 3.97:1 in light mode, now 4.6:1. Orders rows show one next step, so Date and Salesperson are visible again. Edit order lines fit. Customers and Materials show fewer columns, and long material codes wrap.</td></tr>
+      <tr><td class="n">1024</td><td colspan="2">0 issues</td><td>The least-needed columns step aside between 769 and 1280 px, including minor report columns (Pending, Rejected, Cancelled, Code, Avg quote, Vehicle, M2, Days DO → PI). Every table fits. Everything hidden is still in the row dialog, the edit form and the CSV export.</td></tr>
+      <tr><td class="n">768</td><td colspan="2">0 issues</td><td>—</td></tr>
+      <tr><td class="n">375</td><td>0 issues</td><td>0 issues</td><td>The tab bar has a solid background, the first row of phone cards lines up, two-field form rows use one column (the VAT number was cut off), and the active settings tab text is neutral.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="meta">Also fixed in the final pass (§52): 105 one-off inline styles became shared classes, the Orders page title matches each role's default list, and a missing-key console warning is gone. Kept on purpose: 196 inline styles whose values come from data or state, and the plain theme script (a Next.js script tag would make the page flash the wrong theme). Three helper scripts with a hard-coded service-role key were left out of git. Not covered: non-admin roles, and any form submission.</p>
+  <p class="meta">The findings below are the original audit, kept for the record. Every one of them is fixed.</p>
+
+  <h2>Verdict</h2>
+  <p>The app now reads as one product. Every area has one name in the sidebar, on the phone bar and in the top bar. Actions say what they do, and red means "do this" or "careful". Menus, confirms, the period picker and toolbars behave the same on every page. Layouts hold together in light and dark, on desktop, tablet and phone. To reach 18 or more out of 20: test the non-admin roles, re-measure load times, and move the remaining styling into classes where the values allow it.</p>
+
+  <h2>Biggest fixes</h2>
+  <ol class="top">
+    <li><b>Production report works again.</b> Before, the query called <code>.catch()</code>, which Supabase queries don't have, so the page crashed every time.</li>
+    <li><b>Counts agree.</b> The Dashboard shows "Recent orders" with "All active orders (2)", matching the Orders page. The sidebar badge counts steps waiting on you.</li>
+    <li><b>Phone toolbars fit.</b> Search comes first and full width, filters wrap inside the card, and New quotation floats above the tab bar.</li>
+    <li><b>Words and one name per area.</b> Tabs and row actions are labelled. Dashboard, Orders, Purchasing, Production, Inventory, Reports and Settings mean the same everywhere.</li>
+    <li><b>Red only for actions and danger.</b> Links and charts are blue, totals and roles neutral, and focus rings solid. The missing colour variables are defined, and every menu closes on Esc.</li>
+  </ol>
+
+  <h2>First-audit points: second pass and now</h2>
+  <p class="meta">At the second pass none of the 26 had been fixed yet. All of them are fixed now.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Sev</th><th>Point</th><th>Second pass</th><th>Now</th></tr></thead>
+    <tbody>
+      <tr><td class="n">P1</td><td>Counts disagree (Dashboard 2 vs 3, badge 3)</td><td>Still open, same numbers</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P1</td><td>Icon-only status tabs</td><td>Still open; also seen on Ready to Ship and Inventory on phone</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P1</td><td>One place, three names</td><td>Still open; the More sheet adds a fourth list of names</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P1</td><td>Tables overflow at 1440 px</td><td>Still open; Materials too (1,369 px table in an 893 px card)</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P1</td><td>Filter menu ignores Esc</td><td>Still open</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P1</td><td>Coloured icon-only row actions</td><td>Still open</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P1</td><td>Red for brand, link, money, role and error</td><td>Still open; the Waiting report adds red queue names</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P1</td><td>Five undefined CSS variables</td><td>Still open, 19 uses in code</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>Up to four navigation levels</td><td>Still open</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>Two search boxes on desktop, none on phone</td><td>Still open</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>Cards inside cards</td><td>Still open; worst in the phone New PO dialog (three levels)</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>Help banners always shown</td><td>Still open; on phone the Purchasing banner is about 230 px tall</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>Mixed English/Arabic names</td><td>Still open; also clipped in the Edit Order customer field</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>Three date-range controls</td><td>Still open; Finished Goods is a fourth variant</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>Four dialog footers</td><td>Still open</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>Browser <code>confirm()</code> pop-ups</td><td>Still open</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>Order dialog: Ready 0 while Dispatched 45</td><td>Still open</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>21 font sizes plus inline sizes</td><td>Still open</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>466 inline styles</td><td>Still open</td><td><span class="pill ok">Down to 196</span></td></tr>
+      <tr><td class="n">P2</td><td>Faint focus ring</td><td>Still open</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>Page slide-in on every navigation</td><td>Still open (<code>contentIn</code>, globals.css:294)</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>Phone Orders toolbar takes four rows</td><td>Still open; Inventory takes five</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P2</td><td>Green Refresh button, uneven tab bar</td><td>Still open</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P3</td><td>Dashboard nested scroll, chip casing, flat headings</td><td>Still open</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P3</td><td>Too many font weights; <code>transition: all</code>; all motion removed under reduced motion</td><td>Still open</td><td><span class="pill ok">Fixed</span></td></tr>
+      <tr><td class="n">P3</td><td>Phone order cards have no next step</td><td>Still open</td><td><span class="pill ok">Fixed</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <section class="area">
+    <p class="meta">Each finding below is listed as it was found. "Fix applied" describes what was done.</p>
+    <h2>1 · Broken or blocked</h2>
+
+    <article class="f"><header><span class="pill p0">P0</span><span class="pill ok">Fixed</span><span class="pill new">new</span><h3>Reports → Production crashes</h3></header>
+      <p>The page always shows “This page couldn't load”. The server error is: <code>db(...).from(...).select(...).gte(...).lte(...).order(...).catch is not a function</code>. Supabase query builders can be awaited but don't have <code>.catch</code>, so the page throws before it renders. Lines 29 and 37 use the same pattern and only work because they wrap a promise.</p>
+      <p class="fix">Wrap each query in <code>try { await … } catch { … }</code>, or use <code>.then(r =&gt; r, () =&gt; ({ data: [] }))</code>.</p>
+      <p class="where">app/production/reports/page.js:45</p></article>
+
+    <article class="f"><header><span class="pill p1">P1</span><span class="pill ok">Fixed</span><h3>Counts disagree between Dashboard, sidebar and Orders</h3></header>
+      <p>The Dashboard “Active Orders” table lists Q-2026-004, 005 and 006, but both links above it say (2). The sidebar badge says 3, and the Orders page says All Active 2 / Everything 3.</p>
+      <p class="fix">Define “active” once (in <code>batchQueues()</code>) and use that number for the badge, the links and the table. Or rename the dashboard table to “Recent orders”.</p>
+      <p class="where">app/page.js · app/orders/page.js · lib/server.js</p></article>
+
+    <article class="f"><header><span class="pill p1">P1</span><span class="pill ok">Fixed</span><h3>Five CSS variables used but never defined</h3></header>
+      <p><code>--danger</code> falls back to #ef4444, which matches neither theme's red. <code>--surface-sunken</code>, <code>--radius</code>, <code>--ink</code> and <code>--text-muted</code> have no fallback, so those boxes get no background or radius. Affected: the BOM dialog and calculator, New Recipe, the inventory page, the DPR form and dialog, and production reports.</p>
+      <p class="fix">Map them to existing tokens: <code>--danger → --red</code>, <code>--surface-sunken → --fill-2</code>, <code>--radius → --r-ctl</code>, <code>--text-muted → --muted</code>, <code>--ink → --text</code>.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><span class="pill new">new</span><h3>Theme loader is a React <code>&lt;script&gt;</code>; the error page lost dark mode</h3></header>
+      <p>The console shows “Encountered a script tag while rendering React component”. On the crashed Production report, the page rendered in light theme while the saved setting was dark. The console also shows “Transition was aborted because of invalid state” from the theme switch animation.</p>
+      <p class="fix">Load <code>theme-init.js</code> with <code>next/script</code> using <code>strategy="beforeInteractive"</code> (or inline it in <code>&lt;head&gt;</code> outside React). Wrap <code>startViewTransition</code> in a try/catch.</p>
+      <p class="where">app/layout.js:125</p></article>
+  </section>
+
+  <section class="area">
+    <h2>2 · Navigation and page structure</h2>
+
+    <article class="f"><header><span class="pill p1">P1</span><span class="pill ok">Fixed</span><h3>Status tabs show only an icon and a number</h3></header>
+      <p>On Orders, only the selected tab has words; the others are an icon plus a count. The same happens on Ready to Ship and Inventory (⚠ 0). On phones they also scroll off-screen with no hint that there are more.</p>
+      <p class="fix">Always show short labels. On phones, keep the labels and add a fade at the scroll edge so it's clear the strip continues.</p></article>
+
+    <article class="f"><header><span class="pill p1">P1</span><span class="pill ok">Fixed</span><h3>One place, three or four names</h3></header>
+      <p>The same area is called Production in the sidebar, Ready to Ship on the page and Floor on the phone. Purchasing is “Buying” on phones, and Inventory is “Stock”. The stepper says Invoiced on desktop and Bill on phones. Reports pages are titled “… · Reports · Settings”.</p>
+      <p class="fix">A single glossary file used by the sidebar, phone bar, More sheet, page titles and stepper.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><span class="pill new">new</span><h3>Issue to Line has no way in from Inventory</h3></header>
+      <p><code>/inventory/issue</code> lights up “Inventory” in the sidebar, but the Inventory page only has Raw Material and Finished Goods tabs. The only ways to reach the issue list are the Dashboard shortcut (which opens a new issue, not the list) and links inside a production plan.</p>
+      <p class="fix">Add an “Issues to line” tab to the Inventory tabs, or put Issue in the Production area next to Planning.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><h3>Up to four navigation levels</h3></header>
+      <p>On DPR there are four: sidebar, factory tabs, step tabs and the table toolbar. Settings has the sidebar, a second settings sidebar, and a tab strip whose last tab is cut off.</p>
+      <p class="fix">At most two levels per page. On desktop, Settings should use the same horizontal sub-tab strip the phone already uses.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><h3>Search: two boxes on desktop, none on phone</h3></header>
+      <p class="fix">On list pages, let the top search filter the current list and drop the duplicate. On phones, add a search icon to the top bar.</p></article>
+
+    <article class="f"><header><span class="pill p3">P3</span><span class="pill ok">Fixed</span><span class="pill new">new</span><h3>Phone More sheet</h3></header>
+      <p>Settings is in the tab bar and again in More, with all 10 masters listed. Light mode and Log out sit below the fold of a sheet that scrolls (875 px of content in 690 px).</p>
+      <p class="fix">Bottom bar: Home · Orders · Floor · Stock · More. Put Settings inside More as one item that opens the settings list, and keep Theme and Log out at the top of the sheet.</p></article>
+  </section>
+
+  <section class="area">
+    <h2>3 · Page layouts, desktop</h2>
+
+    <article class="f"><header><span class="pill p1">P1</span><span class="pill ok">Fixed</span><h3>Tables overflow at full desktop width</h3></header>
+      <p>The Actions column is cut off in Users (to “AC”) and BOM &amp; Recipes (to “E… Rec…”). Customers hides VAT and the columns after it. Materials is 1,369 px wide inside an 893 px card.</p>
+      <p class="fix">Make the Actions column sticky on the right, move low-value columns into the row's detail view, and drop the second settings sidebar.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><span class="pill new">new</span><h3>Quote line fields clip their values</h3></header>
+      <p>In Edit Order, Grade “AL4035” is cut to “AL403” in a 70 px field. Colour codes like “AL13007 Riyadh Stone” can't fit in 98 px. The dispatched line still shows a red delete icon, even though the banner says it can't be removed.</p>
+      <p class="fix">Size the columns to their content (Grade and Core at least 84 px, Colour at least 140 px). Hide the delete icon on dispatched lines.</p>
+      <p class="where">app/orders/new/QuoteForm.js</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><span class="pill new">new</span><h3>Sibling pages with different toolbars</h3></header>
+      <p>Raw Material uses a date-range pill, “Export”, and “Adjust Stock” next to “Opening Stock (CSV)”. Finished Goods, one tab away, uses two native date inputs, a separate Filter button, and “Download CSV”. The GRN tab shows “New PO” as its main button.</p>
+      <p class="fix">One shared toolbar component: search on the left; date range, filters and Export in the middle; the one main action for that tab on the right.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><h3>Cards inside cards, help banners always shown</h3></header>
+      <p class="fix">Use one container level. Help banners get a “Got it” button that collapses them to a one-line link, remembered per user.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><h3>Mixed English/Arabic names</h3></header>
+      <p>“(English) Arabic” in one string reorders around the brackets, wraps to three lines in tables, and is clipped in the Edit Order customer field.</p>
+      <p class="fix">English name on line one, Arabic on line two with <code>dir="rtl" lang="ar"</code>.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><h3>Four date-range controls</h3></header>
+      <p class="fix">One DateRange component with presets (Today, This week, This month, Last month, Custom).</p></article>
+
+    <article class="f"><header><span class="pill p3">P3</span><span class="pill ok">Fixed</span><h3>Dashboard details</h3></header>
+      <p>Live Activity scrolls inside the scrolling page. Chips mix “Approved” and “DISPATCHED”. Section titles aren't headings. The customer address shows “Saudi Arabia, Saudi Arabia”.</p></article>
+  </section>
+
+  <section class="area">
+    <h2>4 · Phone layouts</h2>
+
+    <article class="f"><header><span class="pill p1">P1</span><span class="pill ok">Fixed</span><span class="pill new">new</span><h3>Purchasing toolbar overflows its card</h3></header>
+      <p>At 375 px, <code>.tbl-filters</code> (status pills plus search) is 598 px wide inside a card that clips it. Search box text gets cut off on the right, and the Approved, Closed and Rejected pills are hidden with no scroll hint. The PO / GRN switch is cut off too.</p>
+      <p class="fix">Let <code>.tbl-filters</code> wrap on phones: search on its own full-width row, and the pills as a scroll strip with an edge fade.</p>
+      <p class="where">app/inventory/po/page.js · globals.css .tbl-filters</p></article>
+
+    <article class="f"><header><span class="pill p1">P1</span><span class="pill ok">Fixed</span><span class="pill new">new</span><h3>Reports period card clips its controls</h3></header>
+      <p>The “to” date input runs off the card, export buttons are cut off at “Dispa…”, and a large empty space is left below. Below that, the KPI cards are stacked full width with big red and green numbers.</p>
+      <p class="fix">Stack From and To as two half-width fields, put Apply under them, and make Export one button that opens a menu.</p>
+      <p class="where">app/admin/reports/ReportsHead.js</p></article>
+
+    <article class="f"><header><span class="pill p1">P1</span><span class="pill ok">Fixed</span><span class="pill new">new</span><h3>Phone New PO dialog hides its main button</h3></header>
+      <p>The footer shows only a full-width “Close”. “Create PO” is inside the scrolling body, below the material lines. Each material line is drawn as a generic label/value card with a “#” row, and the material picker is half-width and truncated (“Search code or …”). There are three nested card levels.</p>
+      <p class="fix">Footer: Cancel and Create PO. Material lines use the same card layout as quotation lines on phones (full-width picker, then Qty and Rate side by side).</p>
+      <p class="where">app/inventory/po/NewPODialog.js</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><h3>Toolbars push data below the fold</h3></header>
+      <p>Before the first row of data, Orders uses four rows of controls (about 300 px), Inventory five (about 290 px), and Purchasing a 230 px help banner plus the toolbar.</p>
+      <p class="fix">One row: a search field with a filter icon inside it. The main action becomes a floating + button, and secondary actions go into the filter sheet.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><span class="pill new">new</span><h3>Quotation form has no sticky total or submit</h3></header>
+      <p>The phone quote form is 1,380 px long. The total and “Submit for Approval” only appear at the very bottom, so after editing a line the salesperson scrolls to check the total and scrolls back.</p>
+      <p class="fix">A sticky bottom bar above the tab bar showing “Total SAR 6,986.25” and the Submit button.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><span class="pill new">new</span><h3>Documents shrink to half size on phones</h3></header>
+      <p>Below 430 px, <code>.doc { zoom: 0.5 }</code> renders the 11 px document text at about 5.5 px. Quotations and delivery orders opened from the Docs pop-up can't be read without pinch-zooming.</p>
+      <p class="fix">Show documents at 100% with sideways scrolling inside the dialog, and add a “Fit width” toggle.</p>
+      <p class="where">globals.css:1421</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><h3>Top bar and tab bar</h3></header>
+      <p>Refresh is a large solid green circle (green means “done”). In the bottom bar, Settings and More are squeezed at the right edge, and the Next.js dev badge sits on top of More (that badge only appears on localhost).</p>
+      <p class="fix">Make Refresh a ghost icon and give the five bar items equal width.</p></article>
+  </section>
+
+  <section class="area">
+    <h2>5 · Pop-ups, menus and dialogs</h2>
+
+    <article class="f"><header><span class="pill p1">P1</span><span class="pill ok">Fixed</span><h3>Filter menu ignores Esc and stays open behind dialogs</h3></header>
+      <p class="fix">A shared <code>useMenu()</code> hook (Esc, outside click, route change), built from <code>FootMore</code>, used by every dropdown.</p></article>
+
+    <article class="f"><header><span class="pill p1">P1</span><span class="pill ok">Fixed</span><h3>Row actions are coloured icons without words</h3></header>
+      <p>Q-2026-006 has two identical orange upload icons, one for each PI. Tooltips are switched off on touch screens.</p>
+      <p class="fix">“Make PI” as a labelled button, and one “Attach tax invoice (2)” button with a chooser.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><h3>Four different dialog footers; browser <code>confirm()</code> mixed in</h3></header>
+      <p>New PO has its main button in the body and only “Close” in the footer. The order dialog has three unlabelled icons at the bottom left (Duplicate, Edit, Delete), with Delete next to Edit. New Quotation has no Cancel, but Edit Order does. “Discard what you typed?” and “Leave this page?” use the browser's own grey pop-up.</p>
+      <p class="fix">One footer rule (labelled secondary actions on the left; Cancel and the main action on the right), Delete behind a labelled More menu, and an in-app <code>confirmDialog()</code>.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><h3>Order dialog numbers that look wrong</h3></header>
+      <p>An item shows Ready 0 while Dispatched is 45. The Ready step has no date. The “Next:” banner lists every PI number in one sentence.</p></article>
+
+    <article class="f"><header><span class="pill p3">P3</span><span class="pill ok">Fixed</span><span class="pill new">new</span><h3>Make PI dialog</h3></header>
+      <p>The dialog itself is clear. Two small things: “Reason for price change” is always shown, even when no price was changed, and the button icon has no gap before its text (“▣Make PI”).</p>
+      <p class="fix">Show the reason field only after a unit price differs from the quotation (it stays required then), and add <code>gap</code> to that button.</p></article>
+  </section>
+
+  <section class="area">
+    <h2>6 · Typography and colour</h2>
+
+    <article class="f"><header><span class="pill p1">P1</span><span class="pill ok">Fixed</span><h3>Red means brand, link, progress, money, role and error</h3></header>
+      <p class="fix">Keep red for the logo, one primary button per screen, and danger. Show links and quote numbers in text colour, the current step as a neutral outline, totals as bold neutral text, and roles as neutral chips.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><h3>21 font sizes, 13 px body, 10–11 px labels</h3></header>
+      <p>The UI/UX Pro Max guidance asks for at least 16 px body text on phones (the app already sets inputs to 16 px) and a fixed scale. On desktop the app uses 13 px for body text, and table headers go down to 10 px.</p>
+      <p class="fix">Six size tokens (11 / 12 / 14 / 16 / 20 / 26), a 14 px desktop body, 15–16 px on phones, three weights, and no inline <code>fontSize</code>.</p></article>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><h3>466 inline styles; faint focus ring</h3></header>
+      <p class="fix">About 10 utility classes in place of inline styles, and <code>outline: 2px solid var(--accentH); outline-offset: 2px</code> for every focus ring.</p></article>
+
+    <article class="f"><header><span class="pill p3">P3</span><span class="pill ok">Fixed</span><h3>About the design-system recommendation</h3></header>
+      <p>The UI/UX Pro Max database suggested a navy-and-blue “vibrant block” style with Fira Sans for this product type. That doesn't fit here: the red FMS look was chosen by you, and that choice wins. The one part worth borrowing is its dense-dashboard spacing (8–32 px) as a consistent spacing scale.</p></article>
+  </section>
+
+  <section class="area">
+    <h2>7 · Animation and motion</h2>
+
+    <article class="f"><header><span class="pill p2">P2</span><span class="pill ok">Fixed</span><h3>Every page slides in after navigation</h3></header>
+      <p>About 250 ms of fade-and-lift on every click undoes the feeling of speed from the recent performance work. The guidance used here is to animate one or two meaningful things per view, and a whole page is not one of them.</p>
+      <p class="fix">Remove <code>contentIn</code>. Keep motion for dialogs, sheets, menus and toasts; their timings (250 ms in, 170 ms out) are already good.</p></article>
+
+    <article class="f"><header><span class="pill p3">P3</span><span class="pill ok">Fixed</span><h3><code>transition: all</code>; reduced motion removes every cue</h3></header>
+      <p class="fix">List the properties that change explicitly. Under reduced motion, keep a 120 ms opacity fade on dialogs and sheets.</p></article>
+  </section>
+
+  <h2>What changed for each role</h2>
+  <div class="roles">
+    <div class="role"><h3>Sales</h3><ul>
+      <li>The quote form has a sticky bar with the total, Cancel and Submit.</li>
+      <li>Grade, Core and Colour fields fit the real codes (AL4035, AL13007).</li>
+      <li>Customer names show English on top and Arabic below.</li></ul></div>
+    <div class="role"><h3>Approver</h3><ul>
+      <li>"1. To approve" is labelled, and Orders opens on My work.</li>
+      <li>Duplicate and Edit are labelled. Cancel, Short close and Delete sit behind More.</li></ul></div>
+    <div class="role"><h3>Operations / floor</h3><ul>
+      <li>One name, Production, with one row of tabs: Ready to ship, Planning, Shift output, Check pieces.</li>
+      <li>Help boxes fold away with "Got it".</li>
+      <li>Inventory has an "Issues to line" tab.</li></ul></div>
+    <div class="role"><h3>Accounts</h3><ul>
+      <li>Each order row shows one labelled next step, such as "Make PI" or "Attach tax invoice".</li>
+      <li>Totals are bold neutral, not red.</li>
+      <li>Documents open readable on phones and scroll sideways.</li></ul></div>
+    <div class="role"><h3>Admin</h3><ul>
+      <li>Reports → Production works.</li>
+      <li>Settings uses one tab row, and every masters table fits.</li>
+      <li>Theme and Log out are at the top of the phone More menu.</li></ul></div>
+  </div>
+
+  <h2>Not covered</h2>
+  <p>Only the Admin login was used, so role-specific screens were inferred from code and route rules. The login page was read from code only. No form was submitted, so success toasts, server error messages and the plant “Mark ready” and dispatch flows weren't exercised. Tablet widths (768 and 1024 px) were tested in the re-audit. Landscape phone and the largest system text size were not. Touch gestures, such as dragging a sheet down to close it, were checked in code, not on a device.</p>
+
+  <h2>What's working</h2>
+  <ul class="good">
+    <li><b>Native dialogs</b> with focus trap, Esc, a closing animation and an unsaved-changes guard.</li>
+    <li><b>Phone tables become cards,</b> labelled from the column headers.</li>
+    <li><b>Correct phone keyboards:</b> numeric and decimal input modes on quantity, size and price fields.</li>
+    <li><b>Long lists load 50 at a time</b> (Materials: 2,203 rows).</li>
+    <li><b>Guarded deletes:</b> confirm before removing an item value; type-to-confirm on big deletes; Undo dispatch asks first.</li>
+    <li><b>Useful empty states,</b> for example “View Dispatched (3) →”.</li>
+    <li><b>Error page with recovery:</b> “Try again” and “Back to Orders”, plus a reference number.</li>
+    <li><b>44 px touch targets,</b> 16 px inputs on phones, and no sideways page scroll at 375 px.</li>
+    <li><b>Make PI dialog:</b> pre-filled quantities and clear wording.</li>
+  </ul>
+
+  <h2>What's left (not UI findings)</h2>
+  <ol class="plan">
+    <li><b>Test the other roles</b> (Sales, Approver, Operations, Accounts, Plant) on a phone. The audit only used Admin.</li>
+    <li><b>Do one real round of each flow</b> on test data: quote → approve → mark ready → ship → PI → tax invoice. This checks success and error messages.</li>
+    <li><b>Move the Supabase service-role key</b> out of <code>scripts/check_columns.py</code>, <code>check_existing.py</code> and <code>insert_erp_materials.py</code> (they are not in git), or delete those scripts.</li>
+  </ol>
+</div>

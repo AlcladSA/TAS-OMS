@@ -5,23 +5,109 @@ import { RouteDialog } from '../../ui'
 import ActionForm from '@/app/inventory/ActionForm'
 import { updateCoreSettingsAction } from '@/app/inventory/actions'
 
+const isCoil = (m) =>
+  m.kind === 'TOP_COIL' ||
+  m.kind === 'BOTTOM_COIL' ||
+  m.category === 'COIL' ||
+  /coil/i.test(m.name || '')
+
+const isAdhesive = (m) => {
+  if (isCoil(m)) return false
+  const text = `${m.code || ''} ${m.name || ''}`.toLowerCase()
+  return m.kind === 'ADHESIVE' || m.category === 'ADHESIVE' || text.includes('adhesive')
+}
+
+const isMasking = (m) => {
+  if (isCoil(m)) return false
+  const text = `${m.code || ''} ${m.name || ''}`.toLowerCase()
+  return (
+    m.kind === 'MASKING' ||
+    m.category === 'MASKING' ||
+    text.includes('protective') ||
+    text.includes('masking')
+  )
+}
+
+const isGranule = (m) => {
+  if (isCoil(m) || isAdhesive(m) || isMasking(m)) return false
+  const text = `${m.code || ''} ${m.name || ''}`.toLowerCase()
+  if (text.includes('core--') || text.includes('core sheet') || m.uom === 'M2') return false
+  return m.category === 'GRANULE' || (m.kind === 'CORE' && m.uom === 'KG') || text.includes('granule')
+}
+
+const isCoreSheet = (m) => {
+  if (isCoil(m) || isAdhesive(m) || isMasking(m)) return false
+  const text = `${m.code || ''} ${m.name || ''}`.toLowerCase()
+  return (m.kind === 'CORE' && m.uom === 'M2') || text.includes('core--') || text.includes('core sheet')
+}
+
+const isBlendMaterial = (m) => {
+  if (isCoil(m) || isAdhesive(m) || isMasking(m)) return false
+  const text = `${m.code || ''} ${m.name || ''}`.toLowerCase()
+  return (
+    isGranule(m) ||
+    text.includes('calcium') ||
+    text.includes('filler') ||
+    text.includes('desiccant') ||
+    m.category === 'GRANULE' ||
+    (m.kind === 'OTHER' && m.uom === 'KG')
+  )
+}
+
+const formatMaterialLabel = (m) => {
+  const code = (m.code || '').trim()
+  const name = (m.name || '').trim()
+  const uomStr = m.uom ? `(${m.uom})` : ''
+  if (!name || code.toLowerCase() === name.toLowerCase()) {
+    return `${code} ${uomStr}`.trim()
+  }
+  return `${code} · ${name} ${uomStr}`.trim()
+}
+
 export default function BomDialog({ setting, materials = [], closeHref = '/admin/bom' }) {
   if (!setting) return null
 
-  const coreMats = materials.filter((m) => m.kind === 'CORE' || m.category === 'GRANULE' || m.name?.toLowerCase().includes('granule') || m.name?.toLowerCase().includes('core'))
-  const blendMats = materials.filter((m) => m.kind === 'CORE' || m.kind === 'OTHER' || m.category === 'GRANULE' || m.category === 'RM' || m.name?.toLowerCase().includes('calcium') || m.name?.toLowerCase().includes('desiccant'))
-  const adhMats = materials.filter((m) => m.kind === 'ADHESIVE' || m.name?.toLowerCase().includes('adhesive'))
-  const maskMats = materials.filter((m) => m.kind === 'MASKING' || m.name?.toLowerCase().includes('protective') || m.name?.toLowerCase().includes('masking'))
-
+  const [uom, setUom] = useState(setting.uom || 'KG')
   const [blendEnabled, setBlendEnabled] = useState(Boolean(setting.blend_enabled))
+
+  // Categorized material lists
+  const adhMats = materials.filter(isAdhesive)
+  const maskMats = materials.filter(isMasking)
+  const granuleMats = materials.filter(isGranule)
+  const sheetMats = materials.filter(isCoreSheet)
+  const blendMats = materials.filter(isBlendMaterial)
+
+  // Default core materials depending on whether UoM is KG (Granules) or M2 (Solid Sheets)
+  const coreOptions = uom === 'M2' ? [...sheetMats] : [...granuleMats]
+
+  // Preserve currently saved IDs in dropdown lists if present
+  if (setting.core_material_id) {
+    const cur = materials.find((m) => String(m.id) === String(setting.core_material_id))
+    if (cur && !coreOptions.some((m) => String(m.id) === String(setting.core_material_id))) {
+      coreOptions.unshift(cur)
+    }
+  }
+  if (setting.adh_material_id) {
+    const cur = materials.find((m) => String(m.id) === String(setting.adh_material_id))
+    if (cur && !adhMats.some((m) => String(m.id) === String(setting.adh_material_id))) {
+      adhMats.unshift(cur)
+    }
+  }
+  if (setting.mask_material_id) {
+    const cur = materials.find((m) => String(m.id) === String(setting.mask_material_id))
+    if (cur && !maskMats.some((m) => String(m.id) === String(setting.mask_material_id))) {
+      maskMats.unshift(cur)
+    }
+  }
+
   const [blendComponents, setBlendComponents] = useState(() => {
     if (Array.isArray(setting.blend_components) && setting.blend_components.length > 0) {
       return setting.blend_components
     }
     // Default 70/25/5 formulation for NFR
-    const ldpe = materials.find((m) => m.code?.includes('LDPE') || m.name?.includes('LDPE'))
-    const caco3 = materials.find((m) => m.name?.includes('CALCIUM') || m.code?.includes('CaCO3') || m.name?.includes('CaCO3'))
-    const des = materials.find((m) => m.name?.includes('DESICCANT') || m.code?.includes('DESICCANT'))
+    const ldpe = materials.find((m) => isGranule(m) && (m.code?.includes('LDPE') || m.name?.includes('LDPE')))
+    const caco3 = materials.find((m) => !isCoil(m) && (m.name?.includes('CALCIUM') || m.code?.includes('CaCO3') || m.name?.includes('CaCO3')))
+    const des = materials.find((m) => !isCoil(m) && (m.name?.includes('DESICCANT') || m.code?.includes('DESICCANT')))
     return [
       { material_id: ldpe?.id || '', name: ldpe?.name || 'LDPE Recycled Granule (A)', ratio_pct: 70 },
       { material_id: caco3?.id || '', name: caco3?.name || 'Calcium Compound Filler (CaCO3)', ratio_pct: 25 },
@@ -37,7 +123,7 @@ export default function BomDialog({ setting, materials = [], closeHref = '/admin
       next[index] = { ...next[index], [field]: value }
       if (field === 'material_id') {
         const mat = materials.find((m) => String(m.id) === String(value))
-        if (mat) next[index].name = mat.name
+        if (mat) next[index].name = mat.name || mat.code
       }
       return next
     })
@@ -55,9 +141,9 @@ export default function BomDialog({ setting, materials = [], closeHref = '/admin
   }
 
   const applyNfrPreset = () => {
-    const ldpe = materials.find((m) => m.code?.includes('LDPE') || m.name?.includes('LDPE'))
-    const caco3 = materials.find((m) => m.name?.includes('CALCIUM') || m.code?.includes('CaCO3') || m.name?.includes('CaCO3'))
-    const des = materials.find((m) => m.name?.includes('DESICCANT') || m.code?.includes('DESICCANT'))
+    const ldpe = materials.find((m) => isGranule(m) && (m.code?.includes('LDPE') || m.name?.includes('LDPE')))
+    const caco3 = materials.find((m) => !isCoil(m) && (m.name?.includes('CALCIUM') || m.code?.includes('CaCO3') || m.name?.includes('CaCO3')))
+    const des = materials.find((m) => !isCoil(m) && (m.name?.includes('DESICCANT') || m.code?.includes('DESICCANT')))
     setBlendComponents([
       { material_id: ldpe?.id || '', name: ldpe?.name || 'LDPE Recycled Granule (A)', ratio_pct: 70 },
       { material_id: caco3?.id || '', name: caco3?.name || 'Calcium Compound Filler (CaCO3)', ratio_pct: 25 },
@@ -137,7 +223,8 @@ export default function BomDialog({ setting, materials = [], closeHref = '/admin
               id="uom"
               name="uom"
               className="tsearch"
-              defaultValue={setting.uom || 'KG'}
+              value={uom}
+              onChange={(e) => setUom(e.target.value)}
               style={{ width: '100%', padding: '8px 10px' }}
             >
               <option value="KG">Kilograms (KG) — Extruded Granules</option>
@@ -193,7 +280,7 @@ export default function BomDialog({ setting, materials = [], closeHref = '/admin
                 <table className="tbl m-0">
                   <thead>
                     <tr>
-                      <th>Raw Material Component</th>
+                      <th>Raw Material Component (Granules &amp; Fillers)</th>
                       <th className="r" style={{ width: 120 }}>Ratio %</th>
                       <th style={{ width: 44 }}></th>
                     </tr>
@@ -209,10 +296,10 @@ export default function BomDialog({ setting, materials = [], closeHref = '/admin
                             style={{ width: '100%', padding: '6px 8px', fontSize: '0.875rem' }}
                             required
                           >
-                            <option value="">-- Choose Raw Material --</option>
+                            <option value="">-- Choose Raw Material (Granule / Filler) --</option>
                             {blendMats.map((m) => (
                               <option key={m.id} value={m.id}>
-                                {m.code} · {m.name} ({m.uom})
+                                {formatMaterialLabel(m)}
                               </option>
                             ))}
                           </select>
@@ -267,7 +354,9 @@ export default function BomDialog({ setting, materials = [], closeHref = '/admin
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
             {!blendEnabled && (
               <div className="fg">
-                <label htmlFor="core_material_id">Default Core Material (Granules / Core Sheet)</label>
+                <label htmlFor="core_material_id">
+                  Default Core Material ({uom === 'M2' ? 'Solid Core Sheets / Boards' : 'Granules'})
+                </label>
                 <select
                   id="core_material_id"
                   name="core_material_id"
@@ -276,9 +365,9 @@ export default function BomDialog({ setting, materials = [], closeHref = '/admin
                   style={{ width: '100%', padding: '8px 10px' }}
                 >
                   <option value="">-- Choose Stock Material --</option>
-                  {coreMats.map((m) => (
+                  {coreOptions.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.code} · {m.name} ({m.uom})
+                      {formatMaterialLabel(m)}
                     </option>
                   ))}
                 </select>
@@ -297,7 +386,7 @@ export default function BomDialog({ setting, materials = [], closeHref = '/admin
                 <option value="">-- Choose Stock Material --</option>
                 {adhMats.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.code} · {m.name} ({m.uom})
+                    {formatMaterialLabel(m)}
                   </option>
                 ))}
               </select>
@@ -315,7 +404,7 @@ export default function BomDialog({ setting, materials = [], closeHref = '/admin
                 <option value="">-- Choose Stock Material --</option>
                 {maskMats.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.code} · {m.name} ({m.uom})
+                    {formatMaterialLabel(m)}
                   </option>
                 ))}
               </select>

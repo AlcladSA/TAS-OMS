@@ -4,8 +4,10 @@ import { QUEUE_MINE, batchQueues, db, fetchOrder, filterOrders, findOrder, myWor
 import { can } from '@/lib/tas'
 import { IntentLink, LinkBusy } from '../ui'
 import OrdersView from './OrdersView'
+import PageHelp from '../PageHelp'
+import DriveSyncButton from '../DriveSyncButton'
 
-// Workflow pipeline stages shown as tabs: from quote creation to final tax invoice.
+// Workflow pipeline stages:
 const STAGES = [
   { status: 'PENDING', label: 'To approve', icon: 'ph-hourglass' },
   { status: 'AWAIT_DISPATCH', label: 'In production', icon: 'ph-package' },
@@ -13,21 +15,21 @@ const STAGES = [
   { status: 'AWAIT_PI', label: 'Make PI', icon: 'ph-receipt' },
   { status: 'AWAIT_TAX', label: 'Tax invoice', icon: 'ph-upload-simple' },
 ]
-const isStage = (k) => STAGES.some((s) => s.status === k)
 
-// Secondary filters in the dropdown menu for admin / manager:
+// Secondary status filters:
 const FILTERS = [
   { status: 'APPROVED', label: 'Approved', icon: 'ph-seal-check' },
   { status: 'REJECTED', label: 'Rejected', icon: 'ph-x-circle' },
   { status: 'CANCELLED', label: 'Cancelled', icon: 'ph-prohibit' },
 ]
 
+const ALL_FILTERS = [...STAGES, ...FILTERS]
+
 const TITLES = {
   MINE: 'My work',
   ACTIVE: 'All active',
   '': 'All orders',
-  ...Object.fromEntries(STAGES.map((s) => [s.status, s.label])),
-  ...Object.fromEntries(FILTERS.map((f) => [f.status, f.label])),
+  ...Object.fromEntries(ALL_FILTERS.map((f) => [f.status, f.label])),
 }
 const PAGE = 100
 // Lists whose filter also reads the DO/PI batches (batchQueues()).
@@ -45,7 +47,7 @@ export async function generateMetadata({ searchParams }) {
 
 export default async function Orders({ searchParams }) {
   const sp = await searchParams
-  const statusParam = TITLES[sp.status] && sp.status !== 'MINE' ? sp.status : ''
+  const statusParam = TITLES[sp.status] && sp.status !== 'ACTIVE' ? sp.status : ''
   const everything = !statusParam && sp.show === 'all'
 
   const viewId = /^\d+$/.test(sp.view || '') ? sp.view : null
@@ -59,8 +61,7 @@ export default async function Orders({ searchParams }) {
   const viewPromise = viewId ? mePromise.then((me) => findOrder(viewId, me)) : Promise.resolve(null)
 
   const [me, mine, b] = await Promise.all([mePromise, minePromise, batchPromise])
-  // No list asked for: My Work for a single-job role, else All Active.
-  const home = mine ? 'MINE' : 'ACTIVE'
+  const home = 'ACTIVE'
   const status = statusParam || (everything ? '' : home)
   const term = String(sp.q || '').replace(/[,()*%]/g, '').trim()
   const page = Math.max(1, parseInt(sp.page) || 1)
@@ -68,7 +69,7 @@ export default async function Orders({ searchParams }) {
   const own = (q) => (me.role === 'sales' ? q.eq('salesperson_id', me.id) : q)
 
   const base = own(db().from('orders')
-    .select('id, quote_no, quote_date, customer_name, customer_code, contact_no, vat_no, cr_no, address, salesperson_name, status, dispatch_status, doc_no, do_date, pi_date, tax_invoice_path, transport, vat_rate, action_by, action_at, reject_reason, short_close_reason, notes, items:order_items(id, item_no, description, qty, price, total, delivered_qty, ready_qty, dispatched_qty, color_name, m2, production_status, coil_date), batches:order_batches(id, batch_no, do_no, do_date, pi_no, pi_date, tax_invoice_path, vehicle_no, driver, transport, items:batch_items(id, do_qty, order_item:order_items(description, price)))')
+    .select('id, quote_no, quote_date, customer_name, customer_code, contact_no, vat_no, cr_no, address, salesperson_name, status, dispatch_status, doc_no, do_date, pi_date, tax_invoice_path, transport, vat_rate, action_by, action_at, reject_reason, short_close_reason, notes, items:order_items(id, item_no, brand, grade, color_code, core, width, length, thickness, description, qty, price, total, delivered_qty, ready_qty, dispatched_qty, color_name, m2, production_status, coil_date), batches:order_batches(id, batch_no, do_no, do_date, pi_no, pi_date, tax_invoice_path, vehicle_no, driver, transport, items:batch_items(id, do_qty, order_item:order_items(brand, grade, color_code, core, color_name, width, length, thickness, description, price)))')
     .order(SORTS[sort][0], { ascending: SORTS[sort][1] }).order('id', { ascending: false }).range((page - 1) * PAGE, page * PAGE))
   let q = status === 'MINE' ? QUEUE_MINE(base, mine) : filterOrders(base, status, b)
   if (term) q = q.or(`quote_no.ilike.%${term}%,customer_name.ilike.%${term}%,doc_no.ilike.%${term}%`)
@@ -98,78 +99,133 @@ export default async function Orders({ searchParams }) {
   const sortKeys = Object.keys(SORTS).flatMap((k) => [k, `${k}_desc`]).concat(['newest', 'oldest'])
   const sortHrefs = Object.fromEntries(sortKeys.map((k) => [k, sortHref(k)]))
   const tabs = [
-    mine && ['MINE', 'ph-user'],
     ['ACTIVE', 'ph-lightning'],
-    ...STAGES.map((s) => [s.status, s.icon]),
     ['', 'ph-list-checks'],
-  ].filter(Boolean)
+  ]
   const boss = ['admin', 'manager'].includes(me.role)
-  const filter = FILTERS.find((f) => f.status === status)
+  const filter = ALL_FILTERS.find((f) => f.status === status) || (status === 'MINE' ? { status: 'MINE', label: 'My work', icon: 'ph-user' } : null)
   const exportParams = new URLSearchParams({ ...(filter ? { status } : {}), ...(term ? { q: term } : {}) })
 
   return (
     <>
+      <PageHelp page="orders" />
       <div className="card">
         <div className="tbl-top">
           <nav className="tabs tabs-dynamic mb-0" aria-label="Which orders">
-            {tabs.map(([k, icon], i) => {
+            {tabs.map(([k, icon]) => {
               const isActive = status === k
               const title = TITLES[k]
               const count = countOf(k)
-              const stage = isStage(k)
-              const prev = i > 0 && isStage(tabs[i - 1][0])
-              // Chevron between stages, a divider where the stage run starts or ends
-              const sep = i === 0 ? null : stage && prev ? <i className="ph ph-caret-right step-sep" aria-hidden="true" /> : stage !== prev ? <span className="tab-div" aria-hidden="true" /> : null
               return (
-                <Fragment key={k}>
-                {sep}
                 <IntentLink
+                  key={k}
                   href={href({ ...listOf(k), ...keep })}
-                  className={`tab${isActive ? ' on' : ''}${stage && !count ? ' dim' : ''}`}
+                  className={`tab${isActive ? ' on' : ''}`}
                   aria-current={isActive ? 'page' : undefined}
-                  title={`${title} (${count})`}
-                  aria-label={`${title} (${count})`}
+                  title={count > 0 ? `${title} (${count})` : title}
+                  aria-label={count > 0 ? `${title} (${count})` : title}
                 >
                   <LinkBusy />
                   <i className={`ph ${icon}`} />
                   <span className="tab-txt">{title}</span>
-                  <span className={`badge ${stage && count ? 'b-warn' : 'b-none'}`}>{count}</span>
+                  {count > 0 && <span className="badge b-none">{count}</span>}
                 </IntentLink>
-                </Fragment>
               )
             })}
           </nav>
           <div className="tbl-filters">
-            {boss && (
-              // key: picking a list closes the menu
-              <details className="dl-menu q-menu" key={status}>
-                <summary
-                  className={`btn btn-sm ${filter ? 'btn-primary' : 'btn-ghost'}`}
-                  title={filter ? `Filter: ${filter.label}` : 'More filters'}
-                  aria-label={filter ? `Filter: ${filter.label}` : 'More filters'}
-                >
-                  <i className="ph ph-funnel" />
-                  <span className="q-label">{filter?.label || 'More filters'}</span>
-                  <i className="ph ph-caret-down q-caret" />
-                </summary>
-                <div className="dl-list">
-                  {FILTERS.map((f) => (
-                    <IntentLink key={f.status} href={href({ status: f.status, ...keep })} className="dl-item">
-                      <i className={`ph ${f.icon}`} />{f.label}<span className="badge b-none" style={{ marginLeft: 'auto' }}>{countOf(f.status)}</span>
+            {/* key: picking a list closes the menu */}
+            <details className="dl-menu q-menu" key={status}>
+              <summary
+                className={`btn btn-sm ${filter ? 'btn-primary' : 'btn-ghost'}`}
+                title={filter ? `Filter: ${filter.label}` : 'More filters'}
+                aria-label={filter ? `Filter: ${filter.label}` : 'More filters'}
+              >
+                <i className="ph ph-funnel" />
+                <span className="q-label">{filter?.label || 'More filters'}</span>
+                <i className="ph ph-caret-down q-caret" />
+              </summary>
+              <div className="dl-list">
+                {filter && (
+                  <>
+                    <IntentLink href={href({ ...listOf('ACTIVE'), ...keep })} className="dl-item dl-clear">
+                      <i className="ph ph-x" />Clear filter
                     </IntentLink>
-                  ))}
-                </div>
-              </details>
-            )}
+                    <div className="dl-sep" />
+                  </>
+                )}
+                {mine && (
+                  <>
+                    <IntentLink
+                      href={href({ status: 'MINE', ...keep })}
+                      className={`dl-item${status === 'MINE' ? ' active' : ''}`}
+                    >
+                      <i className="ph ph-user" />
+                      <span>My work</span>
+                      {mine.length > 0 && (
+                        <span className="badge b-warn" style={{ marginLeft: 'auto' }}>
+                          {mine.length}
+                        </span>
+                      )}
+                    </IntentLink>
+                    <div className="dl-sep" />
+                  </>
+                )}
+                <div className="dl-group">Pipeline</div>
+                {STAGES.map((f) => {
+                  const isSelected = f.status === status
+                  const count = countOf(f.status)
+                  return (
+                    <IntentLink
+                      key={f.status}
+                      href={href({ status: f.status, ...keep })}
+                      className={`dl-item${isSelected ? ' active' : ''}`}
+                    >
+                      <i className={`ph ${f.icon}`} />
+                      <span>{f.label}</span>
+                      {count > 0 && (
+                        <span className="badge b-warn" style={{ marginLeft: 'auto' }}>
+                          {count}
+                        </span>
+                      )}
+                    </IntentLink>
+                  )
+                })}
+                <div className="dl-sep" />
+                <div className="dl-group">Status</div>
+                {FILTERS.map((f) => {
+                  const isSelected = f.status === status
+                  const count = countOf(f.status)
+                  return (
+                    <IntentLink
+                      key={f.status}
+                      href={href({ status: f.status, ...keep })}
+                      className={`dl-item${isSelected ? ' active' : ''}`}
+                    >
+                      <i className={`ph ${f.icon}`} />
+                      <span>{f.label}</span>
+                      {count > 0 && (
+                        <span className="badge b-none" style={{ marginLeft: 'auto' }}>
+                          {count}
+                        </span>
+                      )}
+                    </IntentLink>
+                  )
+                })}
+              </div>
+            </details>
             <form className="sw">
               {Object.entries(listOf(status)).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
               <i className="ph ph-magnifying-glass" />
               <input className="tsearch" name="q" defaultValue={term} placeholder="Quote no, customer, DO/PI no" aria-label="Search this list" />
             </form>
             {boss && (
-              <a className="btn btn-ghost btn-sm" href={`/admin/export/orders?${exportParams}`}>
-                <i className="ph ph-download-simple" />Export
-              </a>
+              <>
+                <a className="btn btn-ghost btn-sm" href={`/admin/export/orders?${exportParams}`}>
+                  <i className="ph ph-download-simple" />Export
+                </a>
+                <DriveSyncButton label="Drive Sync" />
+              </>
             )}
             {can(me, 'sales') && (
               <IntentLink href="/orders/new" className="btn btn-primary btn-sm fab-phone">

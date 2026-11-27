@@ -79,7 +79,7 @@ export default async function AdminBomPage({ searchParams }) {
               <LinkBusy />
               <i className="ph ph-sliders" />
               <span>Core Recipes &amp; Parameters</span>
-              <span className="badge b-none">{coreSettings.length}</span>
+              {coreSettings.length > 0 && <span className="badge b-none">{coreSettings.length}</span>}
             </IntentLink>
 
             <IntentLink

@@ -37,7 +37,7 @@ export default async function LoginPage({ searchParams }) {
           {/* Same mark as the sidebar and the favicon */}
           <div className="logo-ic"><svg viewBox="12 16 40 34" aria-hidden="true"><path d="M12 50V30l11 7v-7l11 7v-7l11 7V16h7v34z" /></svg></div>
           <div>
-            <h1>TAS OMS</h1>
+            <h1>TAS OS</h1>
             <p>TAS International Manufacturing Co.</p>
           </div>
         </div>

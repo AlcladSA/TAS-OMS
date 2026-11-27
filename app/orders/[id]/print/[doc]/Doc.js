@@ -1,4 +1,4 @@
-import { dmy, int, money, round2, totals, vatPct } from '@/lib/tas'
+import { dmy, int, money, round2, totals, vatPct, describe } from '@/lib/tas'
 
 // Printable Quotation / Delivery Order / Proforma Invoice in the "TAS sales format.xlsx" layout.
 // s = getSettings(): company details, terms and letterhead are edited under Settings → Company.
@@ -38,13 +38,13 @@ export default function Doc({ doc, o, batch, s }) {
   // Quotation shows quoted lines; DO shows batch dispatched items; PI shows batch invoiced items.
   let lines = []
   if (doc === 'quote') {
-    lines = o.items.map((i) => ({ desc: i.description, a: int(i.qty), b: money(i.m2), c: money(i.price), d: money(i.total), total: i.total }))
+    lines = o.items.map((i) => ({ desc: describe(i) || i.description, a: int(i.qty), b: money(i.m2), c: money(i.price), d: money(i.total), total: i.total }))
   } else if (isDO) {
     if (batch?.items?.length) {
       lines = batch.items.map((bi) => {
         const item = bi.order_item || o.items.find((it) => it.id === bi.order_item_id) || {}
         return {
-          desc: item.description || '',
+          desc: describe(item) || item.description || '',
           a: int(item.width),
           b: int(item.length),
           c: int(bi.do_qty),
@@ -55,7 +55,7 @@ export default function Doc({ doc, o, batch, s }) {
       })
     } else {
       lines = o.items.filter((i) => i.delivered_qty > 0).map((i) => ({
-        desc: i.description, a: int(i.width), b: int(i.length), c: int(i.delivered_qty), d: money(i.delivered_m2), pcs: +i.delivered_qty, m2: +i.delivered_m2,
+        desc: describe(i) || i.description, a: int(i.width), b: int(i.length), c: int(i.delivered_qty), d: money(i.delivered_m2), pcs: +i.delivered_qty, m2: +i.delivered_m2,
       }))
     }
   } else if (doc === 'pi') {
@@ -67,7 +67,7 @@ export default function Doc({ doc, o, batch, s }) {
         const price = bi.invoiced_price ?? item.price
         const total = bi.invoiced_total ?? (m2 * price)
         return {
-          desc: item.description || '',
+          desc: describe(item) || item.description || '',
           a: int(qty),
           b: money(m2),
           c: money(price),
@@ -77,7 +77,7 @@ export default function Doc({ doc, o, batch, s }) {
       })
     } else {
       lines = o.items.filter((i) => i.invoiced_qty > 0).map((i) => ({
-        desc: i.description, a: int(i.invoiced_qty), b: money(i.invoiced_m2), c: money(i.invoiced_price), d: money(i.invoiced_total), total: i.invoiced_total,
+        desc: describe(i) || i.description, a: int(i.invoiced_qty), b: money(i.invoiced_m2), c: money(i.invoiced_price), d: money(i.invoiced_total), total: i.invoiced_total,
       }))
     }
   }
